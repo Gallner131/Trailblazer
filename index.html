@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2.39.0/dist/main.min.js"></script>
 <style>
 :root{--bg:#F3F4F6;--card:#FFF;--ink:#0E1116;--muted:#6E7681;--faint:#9AA1AC;--line:#E7E9ED;
  --accent:#FF4B12;--sh:0 1px 2px rgba(14,17,22,.05),0 10px 28px -18px rgba(14,17,22,.35)}
@@ -322,21 +322,20 @@ async function sSet(k,v){
 /* ---------------- authentication & database ---------------- */
 async function initDb(){
   try{
-    if(!window.supabase){
-      throw new Error("Supabase SDK not loaded. Check CDN connection.");
+    if(!window.supabase||!window.supabase.createClient){
+      throw new Error("Supabase SDK not loaded properly");
     }
-    console.log('Creating Supabase client...');
+    console.log('Supabase SDK loaded:', typeof window.supabase);
     sb=window.supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{persistSession:true}});
-    console.log('Getting current user...');
-    const {data:{user},error:authError}=await sb.auth.getUser();
-    if(authError)console.warn('Auth check error (normal if not signed in):', authError);
+    console.log('Supabase client created');
+    const {data:{user}}=await sb.auth.getUser();
     currentUser=user;
-    console.log('Current user:', currentUser?currentUser.email:'none');
+    console.log('Auth check complete:', currentUser?currentUser.email:'no user');
     sbError=null;
     return true;
   }catch(e){
     sbError=e.message||String(e);
-    console.error('Supabase init error:', sbError);
+    console.error('Supabase init error:', sbError, e);
     sb=null;
     return false;
   }
@@ -354,11 +353,13 @@ async function signInWithEmail(){
       $('sheetConfirm').disabled=true;
       $('sheetConfirm').textContent='Sending…';
       try{
-        const {error}=await sb.auth.signInWithOtp({email,options:{shouldCreateUser:true}});
+        console.log('Sending OTP to:', email);
+        const {error}=await sb.auth.signInWithOtp({email});
         if(error){
           console.error('Auth error:', error);
-          throw new Error(error.message||error);
+          throw new Error(error.message||JSON.stringify(error));
         }
+        console.log('OTP sent successfully');
         $('sheetBody').innerHTML=`<h3 style="font-family:Inter Tight;font-weight:700">Check your email</h3>
           <p>We sent a sign-in link to <b>${esc(email)}</b>. Click it to sign in.</p>
           <button class="btn" onclick="closeSheet()">Got it</button>`;

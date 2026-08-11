@@ -239,7 +239,8 @@ body{background:#DFE2E7;font-family:Inter,system-ui,-apple-system,sans-serif;col
       <div class="t"><span id="recName">—</span><small id="recSub">—</small></div>
     </div>
     <div class="recMap" id="recMap">
-      <svg id="recSvg" viewBox="0 0 340 260" preserveAspectRatio="xMidYMid meet"></svg>
+      <img id="recMapImg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+      <svg id="recSvg" viewBox="0 0 340 260" preserveAspectRatio="xMidYMid meet" style="position:absolute;inset:0;width:100%;height:100%"></svg>
       <div class="gpspill" id="gpsPill"><i></i><span>GPS off</span></div>
     </div>
     <div class="status" id="statusBox">
@@ -785,7 +786,10 @@ $('cta').onclick=()=>{
   $('recClock').textContent='0:00';$('clockLbl').textContent='Segment time';
   $('mDist').innerHTML='0<small>m</small>';$('mPace').textContent='—';
   $('mToK').textContent='To start';$('mTo').textContent='—';
-  gpsPill('','GPS off');drawRec();
+  gpsPill('','GPS off');
+  const mapUrl=staticMapUrl(SEG.geom,340,260);
+  if(mapUrl)$('recMapImg').src=mapUrl;
+  drawRec();
   $('rec').classList.add('on');
 };
 $('recClose').onclick=closeRec;

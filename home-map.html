@@ -281,7 +281,7 @@
       const { data: profile, error } = await window.AppAPI.getProfile(userId);
       if (error || !profile) {
         console.error('Failed to load profile:', error);
-        window.location.href = '/section-3-area-setup.html';
+        window.location.href = '/area-setup.html';
         return;
       }
 
@@ -315,7 +315,7 @@
 
       // Area button
       document.getElementById('areaBtn').addEventListener('click', () => {
-        window.location.href = '/section-3-area-setup.html';
+        window.location.href = '/area-setup.html';
       });
 
       // Locate button
@@ -387,7 +387,7 @@
         markers.push(marker);
 
         el.addEventListener('click', () => {
-          window.location.href = '/section-5-segment-sheet.html?segment_id=' + segment.id;
+          window.location.href = '/segment-sheet.html?segment_id=' + segment.id;
         });
       }
 
@@ -418,7 +418,7 @@
       strip.querySelectorAll('.segment-card').forEach(card => {
         card.addEventListener('click', () => {
           const segId = card.dataset.segmentId;
-          window.location.href = '/section-5-segment-sheet.html?segment_id=' + segId;
+          window.location.href = '/segment-sheet.html?segment_id=' + segId;
         });
       });
     }

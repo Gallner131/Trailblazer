@@ -286,199 +286,174 @@
     })();
 
     function initializePageUI() {
-      console.log('initializePageUI() called');
-
-      // Initialize map
+      // Initialize map at London (default)
       map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/outdoors-v12',
         zoom: 12,
         pitch: 0,
-        bearing: 0
+        bearing: 0,
+        center: [-0.1278, 51.5074]
       });
 
-      // Default to London (user's will override with geolocation)
-      map.setCenter([-0.1278, 51.5074]);
+      // Pin drag
+      const pin = document.getElementById('pin');
+      pin.addEventListener('mousedown', () => {
+        isDragging = true;
+        pin.classList.add('dragging');
+      });
 
-    // Geolocation
-    async function getLocation() {
-      return new Promise((resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-          reject(new Error('Location detection timed out'));
-        }, window.AppConstants.TIMEOUTS.location);
+      document.addEventListener('mousemove', async (e) => {
+        if (!isDragging) return;
+        const rect = document.getElementById('map').getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const coords = map.unproject([x, y]);
+        currentLat = coords.lat;
+        currentLng = coords.lng;
 
-        navigator.geolocation.getCurrentPosition(
-          pos => {
-            clearTimeout(timeoutId);
-            resolve(pos);
-          },
-          err => {
-            clearTimeout(timeoutId);
-            reject(err);
+        const { data, error } = await window.AppAPI.reverseGeocode(currentLat, currentLng);
+        if (!error && data) {
+          currentLabel = data.place_name;
+        } else {
+          currentLabel = currentLat.toFixed(3) + ', ' + currentLng.toFixed(3);
+        }
+        document.getElementById('labelText').textContent = currentLabel;
+      });
+
+      document.addEventListener('mouseup', () => {
+        isDragging = false;
+        pin.classList.remove('dragging');
+      });
+
+      // Search - works immediately, doesn't wait for geolocation
+      const searchInput = document.getElementById('searchInput');
+      const searchResults = document.getElementById('searchResults');
+      let searchTimeout;
+
+      searchInput.addEventListener('input', async (e) => {
+        const query = e.target.value.trim();
+        if (!query || query.length < 3) {
+          searchResults.style.display = 'none';
+          return;
+        }
+
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(async () => {
+          const { data, error } = await window.AppAPI.geocodePlace(query);
+          if (error) {
+            showError('Search failed: ' + error.message);
+            return;
           }
-        );
+
+          if (!data || data.length === 0) {
+            searchResults.innerHTML = '<button style="cursor: not-allowed; opacity: 0.5;">No results</button>';
+            searchResults.style.display = 'block';
+            return;
+          }
+
+          searchResults.innerHTML = data.map(feature => {
+            const center = feature.center;
+            return `<button data-lat="${center[1]}" data-lng="${center[0]}" data-name="${feature.place_name}">
+              ${feature.place_name}
+            </button>`;
+          }).join('');
+
+          searchResults.style.display = 'block';
+
+          searchResults.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              e.preventDefault();
+              currentLat = parseFloat(btn.dataset.lat);
+              currentLng = parseFloat(btn.dataset.lng);
+              currentLabel = btn.dataset.name;
+              searchInput.value = '';
+              searchResults.style.display = 'none';
+              document.getElementById('labelText').textContent = currentLabel;
+              map.setCenter([currentLng, currentLat]);
+            });
+          });
+        }, 300);
       });
+
+      // Save button
+      const saveBtn = document.getElementById('saveBtn');
+      if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+          console.log('Save button clicked! Coordinates:', { currentLat, currentLng, currentLabel });
+
+          if (!currentLat || !currentLng) {
+            showError('Please set your area first. Use search or allow location access.');
+            return;
+          }
+
+          saveBtn.disabled = true;
+          showStatus('Saving your area…');
+
+          const { data: { session } } = await window.supabaseClient.auth.getSession();
+          if (!session || !session.user) {
+            showError('Your session expired. Please sign in again.');
+            window.location.href = '/section-2-auth.html';
+            return;
+          }
+
+          console.log('Saving profile: user=' + userId + ', lat=' + currentLat + ', lng=' + currentLng + ', label=' + currentLabel);
+
+          const { error: updateErr } = await window.AppAPI.updateProfile(userId, {
+            home_lat: currentLat,
+            home_lng: currentLng,
+            home_label: currentLabel
+          });
+
+          if (updateErr) {
+            console.error('Profile update failed', updateErr);
+            showError('Failed to save area: ' + (updateErr.message || updateErr.code || 'Database error'));
+            saveBtn.disabled = false;
+            return;
+          }
+
+          console.log('Profile saved successfully, redirecting to map');
+
+          // Harvest segments in background
+          window.AppHarvest.harvestArea(currentLat, currentLng, 2).catch(err => {
+            console.error('Background harvest failed:', err);
+          });
+
+          window.location.href = '/home-map.html';
+        });
+      }
     }
 
-    // On load: try geolocation, fall back to defaults
-    async function initArea() {
+    // Geolocation (runs independently in background)
+    async function initGeolocation() {
       try {
-        const pos = await getLocation();
+        const pos = await Promise.race([
+          new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(
+              pos => resolve(pos),
+              err => reject(err)
+            );
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Geolocation timeout')), window.AppConstants.TIMEOUTS.location)
+          )
+        ]);
+
         currentLat = pos.coords.latitude;
         currentLng = pos.coords.longitude;
         map.setCenter([currentLng, currentLat]);
 
-        // Reverse geocode to get place name
         const { data, error } = await window.AppAPI.reverseGeocode(currentLat, currentLng);
         if (!error && data) {
           currentLabel = data.place_name;
-          document.getElementById('labelText').textContent = currentLabel;
         } else {
           currentLabel = 'Your location';
-          document.getElementById('labelText').textContent = currentLabel;
         }
-      } catch (err) {
-        // Permission denied or timeout; fall back to London
-        currentLat = 51.5074;
-        currentLng = -0.1278;
-        currentLabel = 'London';
         document.getElementById('labelText').textContent = currentLabel;
-        showError('Location permission denied. Set your area manually.');
+      } catch (err) {
+        // Fall back to London, don't block the page
+        document.getElementById('labelText').textContent = 'London (denied location)';
       }
-    }
-
-    // Pin drag
-    const pin = document.getElementById('pin');
-
-    pin.addEventListener('mousedown', () => {
-      isDragging = true;
-      pin.classList.add('dragging');
-    });
-
-    document.addEventListener('mousemove', async (e) => {
-      if (!isDragging) return;
-      const rect = document.getElementById('map').getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const coords = map.unproject([x, y]);
-      currentLat = coords.lat;
-      currentLng = coords.lng;
-
-      // Reverse geocode
-      const { data, error } = await window.AppAPI.reverseGeocode(currentLat, currentLng);
-      if (!error && data) {
-        currentLabel = data.place_name;
-      } else {
-        currentLabel = currentLat.toFixed(3) + ', ' + currentLng.toFixed(3);
-      }
-      document.getElementById('labelText').textContent = currentLabel;
-    });
-
-    document.addEventListener('mouseup', () => {
-      isDragging = false;
-      pin.classList.remove('dragging');
-    });
-
-    // Search
-    const searchInput = document.getElementById('searchInput');
-    const searchResults = document.getElementById('searchResults');
-    let searchTimeout;
-
-    searchInput.addEventListener('input', async (e) => {
-      const query = e.target.value.trim();
-      if (!query) {
-        searchResults.style.display = 'none';
-        return;
-      }
-
-      clearTimeout(searchTimeout);
-      searchTimeout = setTimeout(async () => {
-        const { data, error } = await window.AppAPI.geocodePlace(query);
-        if (error) {
-          showError('Search failed: ' + error.message);
-          return;
-        }
-
-        if (!data || data.length === 0) {
-          searchResults.innerHTML = '<button style="cursor: not-allowed; opacity: 0.5;">No results</button>';
-          searchResults.style.display = 'block';
-          return;
-        }
-
-        searchResults.innerHTML = data.map((feature, i) => {
-          const center = feature.center;
-          return `<button data-lat="${center[1]}" data-lng="${center[0]}" data-name="${feature.place_name}">
-            ${feature.place_name}
-          </button>`;
-        }).join('');
-
-        searchResults.style.display = 'block';
-
-        searchResults.querySelectorAll('button').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            currentLat = parseFloat(btn.dataset.lat);
-            currentLng = parseFloat(btn.dataset.lng);
-            currentLabel = btn.dataset.name;
-            searchInput.value = '';
-            searchResults.style.display = 'none';
-            document.getElementById('labelText').textContent = currentLabel;
-            map.setCenter([currentLng, currentLat]);
-          });
-        });
-      }, 300);
-    });
-
-    // Save button - bind OUTSIDE of geolocation, so it works even if location denied
-    const saveBtn = document.getElementById('saveBtn');
-    if (saveBtn) {
-      saveBtn.addEventListener('click', async () => {
-        console.log('Save button clicked! Coordinates:', { currentLat, currentLng, currentLabel });
-
-        if (!currentLat || !currentLng) {
-          showError('Please set your area first. Use search or allow location access.');
-          return;
-        }
-
-        saveBtn.disabled = true;
-        showStatus('Saving your area…');
-
-        // Verify session is still valid before saving
-        const { data: { session } } = await window.supabaseClient.auth.getSession();
-        if (!session || !session.user) {
-          showError('Your session expired. Please sign in again.');
-          window.location.href = '/section-2-auth.html';
-          return;
-        }
-
-        // Update profile
-        console.log('Saving profile: user=' + userId + ', lat=' + currentLat + ', lng=' + currentLng + ', label=' + currentLabel);
-
-        const { error: updateErr } = await window.AppAPI.updateProfile(userId, {
-          home_lat: currentLat,
-          home_lng: currentLng,
-          home_label: currentLabel
-        });
-
-        if (updateErr) {
-          console.error('Profile update failed', updateErr);
-          showError('Failed to save area: ' + (updateErr.message || updateErr.code || 'Database error'));
-          saveBtn.disabled = false;
-          return;
-        }
-
-        console.log('Profile saved successfully, redirecting to map');
-
-        // Harvest segments in background
-        window.AppHarvest.harvestArea(currentLat, currentLng, 2).catch(err => {
-          console.error('Background harvest failed:', err);
-        });
-
-        // Redirect to map
-        window.location.href = '/home-map.html';
-      });
-    } else {
-      console.error('FATAL: saveBtn element not found in DOM');
     }
 
     function showError(msg) {
@@ -493,10 +468,9 @@
       status.style.display = 'block';
     }
 
-    console.log('About to call initArea()');
-    initArea();
-    console.log('initializePageUI() complete');
-    }
+    // Initialize UI immediately, geolocation in background
+    initializePageUI();
+    initGeolocation();
   </script>
 </body>
 </html>

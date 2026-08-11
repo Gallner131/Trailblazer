@@ -322,15 +322,27 @@ async function sSet(k,v){
 /* ---------------- authentication & database ---------------- */
 async function initDb(){
   try{
-    if(!window.supabase)throw new Error("Supabase SDK not loaded");
+    if(!window.supabase){
+      throw new Error("Supabase SDK not loaded. Check CDN connection.");
+    }
+    console.log('Creating Supabase client...');
     sb=window.supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{persistSession:true}});
-    const {data:{user}}=await sb.auth.getUser();
+    console.log('Getting current user...');
+    const {data:{user},error:authError}=await sb.auth.getUser();
+    if(authError)console.warn('Auth check error (normal if not signed in):', authError);
     currentUser=user;
+    console.log('Current user:', currentUser?currentUser.email:'none');
     if(!user)return false;
+    console.log('Testing database connection...');
     const {error}=await sb.from("runs").select("id").limit(1);
     if(error)throw new Error(error.message);
     sbError=null;return true;
-  }catch(e){sbError=e.message||String(e);sb=null;return false}
+  }catch(e){
+    sbError=e.message||String(e);
+    console.error('Database init error:', sbError);
+    sb=null;
+    return false;
+  }
 }
 
 async function signInWithEmail(){
@@ -346,12 +358,16 @@ async function signInWithEmail(){
       $('sheetConfirm').textContent='Sending…';
       try{
         const {error}=await sb.auth.signInWithOtp({email,options:{shouldCreateUser:true}});
-        if(error)throw error;
+        if(error){
+          console.error('Auth error:', error);
+          throw new Error(error.message||error);
+        }
         $('sheetBody').innerHTML=`<h3 style="font-family:Inter Tight;font-weight:700">Check your email</h3>
           <p>We sent a sign-in link to <b>${esc(email)}</b>. Click it to sign in.</p>
           <button class="btn" onclick="closeSheet()">Got it</button>`;
       }catch(e){
-        alert('Error: '+e.message);$('sheetConfirm').disabled=false;$('sheetConfirm').textContent='Send link';
+        console.error('Sign in error:', e);
+        alert('Error: '+(e.message||JSON.stringify(e)));$('sheetConfirm').disabled=false;$('sheetConfirm').textContent='Send link';
       }
     });
   setTimeout(()=>$('emailInput').focus(),300);
@@ -360,17 +376,31 @@ async function signInWithEmail(){
 async function signInWithGoogle(){
   if(!sb){alert('Database not connected. Please refresh the page.');return}
   try{
+    console.log('Starting Google OAuth...');
     const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}});
-    if(error)throw error;
-  }catch(e){alert('Error: '+e.message)}
+    if(error){
+      console.error('Google OAuth error:', error);
+      throw new Error(error.message||error);
+    }
+  }catch(e){
+    console.error('Google sign in error:', e);
+    alert('Error: '+(e.message||JSON.stringify(e)));
+  }
 }
 
 async function signInWithApple(){
   if(!sb){alert('Database not connected. Please refresh the page.');return}
   try{
+    console.log('Starting Apple Sign In...');
     const {error}=await sb.auth.signInWithOAuth({provider:'apple',options:{redirectTo:window.location.origin}});
-    if(error)throw error;
-  }catch(e){alert('Error: '+e.message)}
+    if(error){
+      console.error('Apple OAuth error:', error);
+      throw new Error(error.message||error);
+    }
+  }catch(e){
+    console.error('Apple sign in error:', e);
+    alert('Error: '+(e.message||JSON.stringify(e)));
+  }
 }
 
 async function signOut(){

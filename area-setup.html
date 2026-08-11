@@ -433,7 +433,7 @@
       saveBtn.disabled = true;
       showStatus('Saving your area…');
 
-      // Update profile
+      // Update profile FIRST (this must succeed)
       const { error: updateErr } = await window.AppAPI.updateProfile(userId, {
         home_lat: currentLat,
         home_lng: currentLng,
@@ -446,17 +446,13 @@
         return;
       }
 
-      // Harvest segments around this location
-      showStatus('Finding nearby segments…');
-      const { error: harvestErr } = await window.AppHarvest.harvestArea(currentLat, currentLng, 2);
+      // Harvest segments in background (do NOT block on this)
+      // Start it, but don't await or check for errors
+      window.AppHarvest.harvestArea(currentLat, currentLng, 2).catch(err => {
+        console.error('Background harvest failed:', err);
+      });
 
-      if (harvestErr) {
-        showError('Harvest failed: ' + harvestErr.message);
-        saveBtn.disabled = false;
-        return;
-      }
-
-      // Redirect to map
+      // Redirect to map immediately after profile save
       window.location.href = '/home-map.html';
     });
 

@@ -259,6 +259,16 @@ body{background:#DFE2E7;font-family:Inter,system-ui,-apple-system,sans-serif;col
     <div id="gateBody"></div>
   </div>
 
+  <!-- sign-in form -->
+  <div class="gate hide" id="signInForm">
+    <div style="max-width:320px;margin:0 auto">
+      <h2 style="font-family:Inter Tight;font-weight:800;font-size:28px;margin:0 0 8px">Trailblazer</h2>
+      <p style="color:var(--muted);font-size:14px;margin:0 0 32px">A new running challenge every day, right near you.</p>
+      <input type="email" id="signInEmail" placeholder="your@email.com" style="width:100%;border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-family:inherit;font-size:15px;margin-bottom:12px">
+      <button class="btn" id="signInBtn" style="margin-bottom:0">Create account</button>
+    </div>
+  </div>
+
   <!-- sheet (bottom panel for modals) -->
   <div class="scrim" id="scrim" onclick="closeSheet()"></div>
   <div class="sheet" id="sheet">
@@ -325,21 +335,6 @@ async function initAuth(){
   return true;
 }
 
-function signInWithEmail(){
-  const email=prompt('Email:');
-  if(!email)return;
-  currentUser={uid:email,email,displayName:email.split('@')[0]};
-  localStorage.setItem('user',JSON.stringify(currentUser));
-  start();
-}
-
-async function signInWithGoogle(){
-  alert('Create an account with email instead — same experience, works immediately');
-}
-
-async function signInWithApple(){
-  alert('Create an account with email instead — same experience, works immediately');
-}
 
 async function signOut(){
   currentUser=null;
@@ -359,12 +354,17 @@ function fail(title,detail,btnLabel,fn,extra){
   $('gBtn').onclick=fn;
 }
 function showSignIn(){
-  gate(`<h2 style="margin-bottom:4px">Trailblazer</h2>
-        <p style="color:var(--muted);margin:0 0 24px;font-size:13px">A new running challenge every day, right near you.</p>
-        <button class="btn grey" onclick="signInWithEmail()" style="margin-bottom:12px">
-          Create account with email
-        </button>
-        <p style="text-align:center;color:var(--faint);font-size:12px">No password hassle — enter any email and password.</p>`);
+  $('gate').classList.add('hide');
+  $('signInForm').classList.remove('hide');
+  $('signInBtn').onclick=()=>{
+    const email=$('signInEmail').value.trim();
+    if(!email||!email.includes('@')){alert('Enter a valid email');return}
+    currentUser={uid:email,email,displayName:email.split('@')[0]};
+    localStorage.setItem('user',JSON.stringify(currentUser));
+    $('signInForm').classList.add('hide');
+    start();
+  };
+  $('signInEmail').focus();
 }
 
 /* ---------------- sheet UI (replaces prompt/alert) --------- */

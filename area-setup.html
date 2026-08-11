@@ -270,7 +270,7 @@
     // Area Setup Logic
     mapboxgl.accessToken = window.AppConstants.MAPBOX_TOKEN;
 
-    let currentLat, currentLng, currentLabel;
+    let currentLat = 51.5074, currentLng = -0.1278, currentLabel = 'London';
     let map, isDragging = false;
     let userId = null;
 
@@ -429,63 +429,56 @@
       }, 300);
     });
 
-    // Save
-    console.log('Setting up save button handler');
+    // Save button - bind OUTSIDE of geolocation, so it works even if location denied
     const saveBtn = document.getElementById('saveBtn');
-    console.log('saveBtn element:', saveBtn);
-    if (!saveBtn) {
-      console.error('saveBtn is null! Element not found in DOM');
-    } else {
+    if (saveBtn) {
       saveBtn.addEventListener('click', async () => {
-        console.log('Save button clicked!');
+        console.log('Save button clicked! Coordinates:', { currentLat, currentLng, currentLabel });
+
+        if (!currentLat || !currentLng) {
+          showError('Please set your area first. Use search or allow location access.');
+          return;
+        }
+
         saveBtn.disabled = true;
         showStatus('Saving your area…');
 
-      // Verify session is still valid before saving
-      const { data: { session } } = await window.supabaseClient.auth.getSession();
-      if (!session || !session.user) {
-        console.error('Session lost during area setup');
-        showError('Your session expired. Please sign in again.');
-        window.location.href = '/section-2-auth.html';
-        return;
-      }
+        // Verify session is still valid before saving
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        if (!session || !session.user) {
+          showError('Your session expired. Please sign in again.');
+          window.location.href = '/section-2-auth.html';
+          return;
+        }
 
-      // Update profile FIRST (this must succeed)
-      console.log('Saving area for user:', userId);
-      console.log('Session user:', session.user.id, 'Profile user:', userId, 'Match:', session.user.id === userId);
-      console.log('Update data:', { home_lat: currentLat, home_lng: currentLng, home_label: currentLabel });
+        // Update profile
+        console.log('Saving profile: user=' + userId + ', lat=' + currentLat + ', lng=' + currentLng + ', label=' + currentLabel);
 
-      const { error: updateErr, data: updateData } = await window.AppAPI.updateProfile(userId, {
-        home_lat: currentLat,
-        home_lng: currentLng,
-        home_label: currentLabel
-      });
-
-      console.log('Update result:', { data: updateData, error: updateErr });
-
-      if (updateErr) {
-        console.error('Profile update failed:', {
-          code: updateErr.code,
-          message: updateErr.message,
-          details: updateErr.details,
-          hint: updateErr.hint
+        const { error: updateErr } = await window.AppAPI.updateProfile(userId, {
+          home_lat: currentLat,
+          home_lng: currentLng,
+          home_label: currentLabel
         });
-        showError('Failed to save area: ' + (updateErr.message || updateErr.code || 'Unknown error'));
-        saveBtn.disabled = false;
-        return;
-      }
 
-      console.log('Profile update succeeded');
+        if (updateErr) {
+          console.error('Profile update failed', updateErr);
+          showError('Failed to save area: ' + (updateErr.message || updateErr.code || 'Database error'));
+          saveBtn.disabled = false;
+          return;
+        }
 
-      // Harvest segments in background (do NOT block on this)
-      // Start it, but don't await or check for errors
-      window.AppHarvest.harvestArea(currentLat, currentLng, 2).catch(err => {
-        console.error('Background harvest failed:', err);
+        console.log('Profile saved successfully, redirecting to map');
+
+        // Harvest segments in background
+        window.AppHarvest.harvestArea(currentLat, currentLng, 2).catch(err => {
+          console.error('Background harvest failed:', err);
+        });
+
+        // Redirect to map
+        window.location.href = '/home-map.html';
       });
-
-      // Redirect to map immediately after profile save
-      window.location.href = '/home-map.html';
-      });
+    } else {
+      console.error('FATAL: saveBtn element not found in DOM');
     }
 
     function showError(msg) {

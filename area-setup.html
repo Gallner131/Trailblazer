@@ -434,6 +434,9 @@
       showStatus('Saving your area…');
 
       // Update profile FIRST (this must succeed)
+      console.log('Saving area for user:', userId);
+      console.log('Update data:', { home_lat: currentLat, home_lng: currentLng, home_label: currentLabel });
+
       const { error: updateErr } = await window.AppAPI.updateProfile(userId, {
         home_lat: currentLat,
         home_lng: currentLng,
@@ -441,10 +444,18 @@
       });
 
       if (updateErr) {
-        showError(updateErr.message);
+        console.error('Profile update failed:', {
+          code: updateErr.code,
+          message: updateErr.message,
+          details: updateErr.details,
+          hint: updateErr.hint
+        });
+        showError('Failed to save area: ' + (updateErr.message || updateErr.code || 'Unknown error'));
         saveBtn.disabled = false;
         return;
       }
+
+      console.log('Profile update succeeded');
 
       // Harvest segments in background (do NOT block on this)
       // Start it, but don't await or check for errors

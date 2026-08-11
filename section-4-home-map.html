@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Trailblazer</title>
+  <meta name="theme-color" content="#FF4B12">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.css" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F3F4F6;
+      --card: #FFF;
+      --ink: #0E1116;
+      --muted: #6E7681;
+      --faint: #9AA1AC;
+      --line: #E7E9ED;
+      --accent: #FF4B12;
+      --sh: 0 1px 2px rgba(14,17,22,.05), 0 10px 28px -18px rgba(14,17,22,.35);
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
+      margin: 0;
+      height: 100%;
+    }
+    .phone {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+    }
+    @media (max-width: 520px) {
+      .phone {
+        height: 100dvh;
+      }
+    }
+    #map {
+      flex: 1;
+      position: relative;
+    }
+    .mapbox-canvas-container.mapboxgl-canvas-container {
+      height: 100%;
+    }
+    /* Top bar */
+    .topbar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 5;
+      pointer-events: none;
+    }
+    .area-btn {
+      pointer-events: all;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 8px 12px;
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      box-shadow: var(--sh);
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 150px;
+    }
+    .locate-btn {
+      pointer-events: all;
+      margin-left: auto;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      cursor: pointer;
+      box-shadow: var(--sh);
+      display: grid;
+      place-items: center;
+      flex: none;
+    }
+    .locate-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+    /* Card strip */
+    .card-strip {
+      position: absolute;
+      bottom: 72px;
+      left: 0;
+      right: 0;
+      height: 120px;
+      display: flex;
+      gap: 8px;
+      padding: 0 12px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      z-index: 4;
+    }
+    .card-strip::-webkit-scrollbar {
+      height: 4px;
+    }
+    .card-strip::-webkit-scrollbar-thumb {
+      background: var(--line);
+      border-radius: 2px;
+    }
+    .segment-card {
+      flex: 0 0 140px;
+      background: var(--card);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: var(--sh);
+      scroll-snap-align: start;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .segment-card:active {
+      transform: scale(0.96);
+    }
+    .segment-card h4 {
+      margin: 0;
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .segment-card .distance {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .segment-card .runners {
+      font-size: 11px;
+      color: var(--faint);
+      margin-top: auto;
+    }
+    /* Tabs */
+    .tabs {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      border-top: 1px solid var(--line);
+      background: var(--card);
+      z-index: 5;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .tab {
+      flex: 1;
+      background: none;
+      border: 0;
+      padding: 9px 0 12px;
+      cursor: pointer;
+      color: var(--faint);
+      font-family: inherit;
+      font-size: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      transition: color 0.2s;
+    }
+    .tab svg {
+      width: 20px;
+      height: 20px;
+    }
+    .tab[aria-selected="true"] {
+      color: var(--ink);
+    }
+    /* Loading bar */
+    .loading-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 0%;
+      height: 2px;
+      background: var(--accent);
+      z-index: 6;
+      animation: loading 2s ease-in-out infinite;
+    }
+    @keyframes loading {
+      0% { width: 0%; }
+      50% { width: 100%; }
+      100% { width: 100%; }
+    }
+    .loading-bar.done {
+      animation: none;
+      width: 100%;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <div id="map"></div>
+
+    <div class="loading-bar" id="loadingBar"></div>
+
+    <div class="topbar">
+      <button class="area-btn" id="areaBtn">London</button>
+      <button class="locate-btn" id="locateBtn">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94-2A11.04 11.04 0 0012 1c-6.5 0-12 5.5-12 12s5.5 12 12 12 12-5.5 12-12c0-2.26-.71-4.35-1.93-6.06zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="card-strip" id="cardStrip"></div>
+
+    <div class="tabs">
+      <button class="tab" data-tab="map" aria-selected="true" id="tabMap">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20.5 3c-.26 0-.5.04-.74.1-.35-.85-1.18-1.46-2.18-1.46-1.3 0-2.3 1-2.22 2.48h-.02C11.89 2.1 9.69 1 7 1 3.13 1 0 4.13 0 8v12c0 .04.02.08.02.12C.14 20.74 1.7 22 3.5 22c1.3 0 2.4-.84 2.82-2h.02c2.11 1.5 4.31 2 7.16 2 3.87 0 7-3.13 7-7V5c0-.86.13-1.69.36-2.49.21-.15.43-.29.64-.42.05 0 .09.02.14.02 1.3 0 2.3-1 2.22-2.48C22.5 3.5 21.5 3 20.5 3z"/>
+        </svg>
+        Map
+      </button>
+      <button class="tab" data-tab="collection" id="tabCollection">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M5 21h14V5H5v16zm0-18h14c1.1 0 2 .9 2 2v14c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V5c0-1.1.9-2 2-2z"/>
+        </svg>
+        Collection
+      </button>
+      <button class="tab" data-tab="boards" id="tabBoards">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm1 11v-5h-2v5h2zM8 11c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm1 11v-5H7v5h2z"/>
+        </svg>
+        Boards
+      </button>
+      <button class="tab" data-tab="you" id="tabYou">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+        </svg>
+        You
+      </button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js"></script>
+  <script src="lib/constants.js"></script>
+  <script src="lib/utils.js"></script>
+  <script src="lib/api.js"></script>
+  <script src="lib/harvest.js"></script>
+  <script src="lib/auth.js"></script>
+  <script>
+    // Home Map Logic
+    mapboxgl.accessToken = window.AppConstants.MAPBOX_TOKEN;
+
+    const userId = window.supabaseClient.auth.user()?.id;
+    if (!userId) {
+      window.location.href = '/section-2-auth.html';
+    }
+
+    let currentProfile, map, segments = [];
+    const markers = [];
+
+    // Initialize map
+    async function initMap() {
+      const { data: profile, error } = await window.AppAPI.getProfile(userId);
+      if (error || !profile) {
+        console.error('Failed to load profile:', error);
+        window.location.href = '/section-3-area-setup.html';
+        return;
+      }
+
+      currentProfile = profile;
+      document.getElementById('areaBtn').textContent = profile.home_label || 'Area';
+
+      // Initialize Mapbox
+      map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/outdoors-v12',
+        center: [profile.home_lng, profile.home_lat],
+        zoom: 14,
+        pitch: 0,
+        bearing: 0
+      });
+
+      // On idle, query segments in view
+      map.on('idle', loadSegmentsInView);
+
+      // Tab navigation
+      document.getElementById('tabMap').addEventListener('click', () => {});  // Already here
+      document.getElementById('tabCollection').addEventListener('click', () => {
+        window.location.href = '/section-8-collection.html';
+      });
+      document.getElementById('tabBoards').addEventListener('click', () => {
+        window.location.href = '/section-9-boards.html';
+      });
+      document.getElementById('tabYou').addEventListener('click', () => {
+        window.location.href = '/section-10-profile.html';
+      });
+
+      // Area button
+      document.getElementById('areaBtn').addEventListener('click', () => {
+        window.location.href = '/section-3-area-setup.html';
+      });
+
+      // Locate button
+      document.getElementById('locateBtn').addEventListener('click', () => {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(pos => {
+            map.setCenter([pos.coords.longitude, pos.coords.latitude]);
+            map.setZoom(15);
+          });
+        }
+      });
+    }
+
+    async function loadSegmentsInView() {
+      const bounds = map.getBounds();
+      const { data, error } = await window.AppAPI.getSegmentsInBounds({
+        minLat: bounds.getSouth(),
+        minLng: bounds.getWest(),
+        maxLat: bounds.getNorth(),
+        maxLng: bounds.getEast()
+      });
+
+      if (error) {
+        console.error('Failed to load segments:', error);
+        return;
+      }
+
+      segments = data || [];
+
+      // Clear old markers
+      markers.forEach(m => m.remove());
+      markers.length = 0;
+
+      // Add new pins
+      for (const segment of segments) {
+        const { data: runs } = await window.AppAPI.getRunsForSegmentToday(segment.id);
+        const count = runs?.length || 0;
+
+        const el = document.createElement('div');
+        el.className = 'segment-pin';
+        el.style.cssText = `
+          width: 32px;
+          height: 32px;
+          background: var(--accent);
+          border-radius: 50%;
+          display: grid;
+          place-items: center;
+          color: white;
+          font-size: 12px;
+          font-weight: 700;
+          font-family: "Inter Tight";
+          cursor: pointer;
+          box-shadow: var(--sh);
+        `;
+
+        if (count > 0) {
+          el.textContent = count;
+        } else {
+          el.textContent = '';
+          el.style.border = '2px solid var(--ink)';
+          el.style.background = 'transparent';
+          el.style.color = 'var(--ink)';
+        }
+
+        const marker = new mapboxgl.Marker(el)
+          .setLngLat([segment.centre_lng, segment.centre_lat])
+          .addTo(map);
+
+        markers.push(marker);
+
+        el.addEventListener('click', () => {
+          window.location.href = '/section-5-segment-sheet.html?segment_id=' + segment.id;
+        });
+      }
+
+      // Update card strip
+      updateCardStrip();
+
+      // Hide loading
+      document.getElementById('loadingBar').classList.add('done');
+    }
+
+    function updateCardStrip() {
+      const strip = document.getElementById('cardStrip');
+      strip.innerHTML = segments.map(seg => {
+        const coords = JSON.parse(seg.geom);
+        const distance = window.AppUtils.haversine(
+          currentProfile.home_lat, currentProfile.home_lng,
+          coords[0][0], coords[0][1]
+        );
+        return `
+          <div class="segment-card" data-segment-id="${seg.id}">
+            <h4>${seg.name}</h4>
+            <div class="distance">${window.AppUtils.formatDistance(seg.length_m)}</div>
+            <div class="runners">${window.AppUtils.formatDistance(distance)} away</div>
+          </div>
+        `;
+      }).join('');
+
+      strip.querySelectorAll('.segment-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const segId = card.dataset.segmentId;
+          window.location.href = '/section-5-segment-sheet.html?segment_id=' + segId;
+        });
+      });
+    }
+
+    initMap();
+  </script>
+</body>
+</html>

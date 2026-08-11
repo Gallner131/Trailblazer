@@ -12,6 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
 <style>
 :root{--bg:#F3F4F6;--card:#FFF;--ink:#0E1116;--muted:#6E7681;--faint:#9AA1AC;--line:#E7E9ED;
  --accent:#FF4B12;--sh:0 1px 2px rgba(14,17,22,.05),0 10px 28px -18px rgba(14,17,22,.35)}
@@ -321,8 +322,8 @@ async function sSet(k,v){
 /* ---------------- authentication & database ---------------- */
 async function initDb(){
   try{
-    const m=await import("https://esm.sh/@supabase/supabase-js@2");
-    sb=m.createClient(SUPA_URL,SUPA_KEY,{auth:{persistSession:true}});
+    if(!window.supabase)throw new Error("Supabase SDK not loaded");
+    sb=window.supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{persistSession:true}});
     const {data:{user}}=await sb.auth.getUser();
     currentUser=user;
     if(!user)return false;

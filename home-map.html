@@ -260,7 +260,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js"></script>
   <script src="lib/constants.js"></script>
-  <script src="lib/utils.js"></script>
+  <script src="lib/auth.js"></script>
   <script src="lib/api.js"></script>
   <script src="lib/harvest.js"></script>
   <script>
@@ -271,7 +271,7 @@
     let currentProfile, map, segments = [];
     const markers = [];
 
-    // Initialize auth and map
+    // Wait for session before initializing
     (async () => {
       const { data: { user } } = await window.supabaseClient.auth.getUser();
       if (!user) {
@@ -279,11 +279,12 @@
         return;
       }
       userId = user.id;
-      await initMap();
+      await initializePageUI();
     })();
 
     // Initialize map
-    async function initMap() {
+    async function initializePageUI() {
+      async function initMap() {
       const { data: profile, error } = await window.AppAPI.getProfile(userId);
       if (error || !profile) {
         console.error('Failed to load profile:', error);
@@ -427,9 +428,10 @@
           window.location.href = '/segment-sheet.html?segment_id=' + segId;
         });
       });
-    }
+      }
 
-    initMap();
+      initMap();
+    }
   </script>
 </body>
 </html>

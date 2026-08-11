@@ -263,7 +263,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js"></script>
   <script src="lib/constants.js"></script>
-  <script src="lib/utils.js"></script>
+  <script src="lib/auth.js"></script>
   <script src="lib/api.js"></script>
   <script src="lib/harvest.js"></script>
   <script>
@@ -274,7 +274,7 @@
     let map, isDragging = false;
     let userId = null;
 
-    // Initialize auth and check user
+    // Wait for session before initializing
     (async () => {
       const { data: { user } } = await window.supabaseClient.auth.getUser();
       if (!user) {
@@ -282,19 +282,21 @@
         return;
       }
       userId = user.id;
+      initializePageUI();
     })();
 
-    // Initialize map
-    map = new mapboxgl.Map({
-      container: 'map',
-      style: 'mapbox://styles/mapbox/outdoors-v12',
-      zoom: 12,
-      pitch: 0,
-      bearing: 0
-    });
+    function initializePageUI() {
+      // Initialize map
+      map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/outdoors-v12',
+        zoom: 12,
+        pitch: 0,
+        bearing: 0
+      });
 
-    // Default to London (user's will override with geolocation)
-    map.setCenter([-0.1278, 51.5074]);
+      // Default to London (user's will override with geolocation)
+      map.setCenter([-0.1278, 51.5074]);
 
     // Geolocation
     async function getLocation() {
@@ -471,6 +473,7 @@
     }
 
     initArea();
+    }
   </script>
 </body>
 </html>

@@ -1,14 +1,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Daily Segment</title>
+<title>Trailblazer</title>
 <meta name="theme-color" content="#FF4B12">
-<meta name="description" content="Run daily segments and race against your friends.">
+<meta name="description" content="A new running challenge every day, right near you.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Daily Segment">
+<meta name="apple-mobile-web-app-title" content="Trailblazer">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect fill='%23FF4B12' width='180' height='180'/><path d='M45 90l45-35 45 35' stroke='%23fff' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='90' cy='80' r='6' fill='%23fff'/></svg>">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%23FF4B12' width='192' height='192'/><path d='M48 96l48-36 48 36' stroke='%23fff' stroke-width='7' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='96' cy='84' r='6' fill='%23fff'/></svg>">
-<link rel="manifest" href="data:application/json,{%22name%22:%22Daily Segment%22,%22short_name%22:%22Segment%22,%22start_url%22:%22/%22,%22scope%22:%22/%22,%22display%22:%22standalone%22,%22theme_color%22:%22%23FF4B12%22,%22background_color%22:%22%23F3F4F6%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%23FF4B12' width='192' height='192'/><path d='M48 96l48-36 48 36' stroke='%23fff' stroke-width='7' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='96' cy='84' r='6' fill='%23fff'/></svg>%22,%22sizes%22:%22192x192%22,%22type%22:%22image/svg+xml%22,%22purpose%22:%22any%22},{%22src%22:%22data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%23FF4B12' width='512' height='512'/><path d='d='M128 256l128-96 128 96' stroke='%23fff' stroke-width='18' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='256' cy='224' r='16' fill='%23fff'/></svg>%22,%22sizes%22:%22512x512%22,%22type%22:%22image/svg+xml%22,%22purpose%22:%22any%22}]}">
+<link rel="manifest" href="data:application/json,{%22name%22:%22Trailblazer%22,%22short_name%22:%22Trailblazer%22,%22start_url%22:%22/%22,%22scope%22:%22/%22,%22display%22:%22standalone%22,%22theme_color%22:%22%23FF4B12%22,%22background_color%22:%22%23F3F4F6%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%23FF4B12' width='192' height='192'/><path d='M48 96l48-36 48 36' stroke='%23fff' stroke-width='7' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='96' cy='84' r='6' fill='%23fff'/></svg>%22,%22sizes%22:%22192x192%22,%22type%22:%22image/svg+xml%22,%22purpose%22:%22any%22},{%22src%22:%22data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%23FF4B12' width='512' height='512'/><path d='d='M128 256l128-96 128 96' stroke='%23fff' stroke-width='18' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='256' cy='224' r='16' fill='%23fff'/></svg>%22,%22sizes%22:%22512x512%22,%22type%22:%22image/svg+xml%22,%22purpose%22:%22any%22}]}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -269,7 +269,7 @@ body{background:#DFE2E7;font-family:Inter,system-ui,-apple-system,sans-serif;col
 
 <script>
 /* =========================================================================
-   Daily Segment
+   Trailblazer
    - Real authentication via Supabase Auth (Apple, Google, Email)
    - Segments come from OpenStreetMap via the Overpass API (real geometry).
    - Times come from the device's GPS (navigator.geolocation) only.
@@ -422,7 +422,7 @@ function fail(title,detail,btnLabel,fn,extra){
   $('gBtn').onclick=fn;
 }
 function showSignIn(){
-  gate(`<h2 style="margin-bottom:4px">Daily Segment</h2>
+  gate(`<h2 style="margin-bottom:4px">Trailblazer</h2>
         <p style="color:var(--muted);margin:0 0 24px;font-size:13px">A new running challenge every day, right near you.</p>
         <button class="btn" onclick="signInWithApple()" style="margin-bottom:10px;gap:12px">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 13.5c-.91 0-1.82.55-2.25 1.51.65.89 1.31 2.04 1.44 3.51.12 1.17-.15 2.29-.81 3.15.5.1 1 .17 1.5.17 2.85 0 5.15-1.74 5.15-3.88s-2.3-3.88-5.15-3.88zm-6.14.35c1.25 0 2.25-1.01 2.25-2.25s-1-2.25-2.25-2.25-2.25 1.01-2.25 2.25 1 2.25 2.25 2.25zM2.5 16c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zm0-4c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5z" style="fill:currentColor"/></svg>

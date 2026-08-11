@@ -332,14 +332,11 @@ async function initDb(){
     if(authError)console.warn('Auth check error (normal if not signed in):', authError);
     currentUser=user;
     console.log('Current user:', currentUser?currentUser.email:'none');
-    if(!user)return false;
-    console.log('Testing database connection...');
-    const {error}=await sb.from("runs").select("id").limit(1);
-    if(error)throw new Error(error.message);
-    sbError=null;return true;
+    sbError=null;
+    return true;
   }catch(e){
     sbError=e.message||String(e);
-    console.error('Database init error:', sbError);
+    console.error('Supabase init error:', sbError);
     sb=null;
     return false;
   }
@@ -580,7 +577,11 @@ const rowToEntry=r=>({uid:r.runner_id,name:r.runner_name,t:Number(r.seconds),
                       lvl:r.level,d:r.distance_m,at:r.created_at});
 async function loadBoard(){
   BOARD=[];myEntry=null;
-  if(!sb||!currentUser)return;
+  if(!sb){
+    console.log("Leaderboard offline (database not available)");
+    return;
+  }
+  if(!currentUser)return;
   const {data,error}=await sb.from("runs").select("*")
     .eq("segment_id",SEG.id).eq("run_date",dayKey)
     .order("seconds",{ascending:true}).limit(200);
@@ -589,8 +590,11 @@ async function loadBoard(){
   myEntry=BOARD.find(e=>e.uid===currentUser.id)||null;
 }
 async function postTime(sec){
-  if(!sb)throw new Error(sbError||"No database connection");
   if(!currentUser)throw new Error("Not signed in");
+  if(!sb){
+    console.warn("Database offline — run saved locally only");
+    return;
+  }
   const {error}=await sb.from("runs").upsert({
     segment_id:SEG.id, segment_name:SEG.name, run_date:dayKey,
     runner_id:currentUser.id, runner_name:me.name,
@@ -614,12 +618,14 @@ function targetFor(lv){
    whole world costs one request per segment, not one per user.            */
 async function loadElevation(){
   if(sb){
-    const {data}=await sb.from("segment_elevation").select("*").eq("segment_id",SEG.id).maybeSingle();
-    if(data&&data.profile&&data.profile.length){
-      SEG.ele={prof:data.profile,up:data.up_m,down:data.down_m,grade:Number(data.net_grade),
-               src:"SRTM 30 m via opentopodata.org"};
-      return;
-    }
+    try{
+      const {data}=await sb.from("segment_elevation").select("*").eq("segment_id",SEG.id).maybeSingle();
+      if(data&&data.profile&&data.profile.length){
+        SEG.ele={prof:data.profile,up:data.up_m,down:data.down_m,grade:Number(data.net_grade),
+                 src:"SRTM 30 m via opentopodata.org"};
+        return;
+      }
+    }catch(e){console.warn("Elevation cache offline")}
   }
 
   const step=Math.max(1,Math.ceil(SEG.geom.length/99));
@@ -1049,19 +1055,20 @@ async function loadMe(){
 /* ---------------- boot ---------------- */
 let RADIUS=700;
 async function start(){
-  loading("Checking authentication…");
+  loading("Starting up…");
   await initDb();
-  if(!sb){
-    fail("Connection failed",
-      `<b>Error:</b> ${esc(sbError||"Could not connect to the database")}<br><br>
-       This might be a network issue, or the Supabase project might be misconfigured.`,
+
+  if(!currentUser){
+    if(!sb)fail("Connection failed",
+      `Could not connect to Supabase: ${esc(sbError||"Unknown error")}<br><br>
+       Try refreshing the page. If this persists, check your internet connection.`,
       "Retry",start);
+    else showSignIn();
     return;
   }
-  if(!currentUser){showSignIn();return}
 
   await loadMe();
-  loading("Connecting to the leaderboard…");
+  loading("Finding your location…");
   let pos;
   try{pos=await askLocation()}catch(e){return}
 

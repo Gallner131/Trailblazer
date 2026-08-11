@@ -880,8 +880,7 @@ function finishRec(){
 async function saveRun(){
   if(rec.segTime==null)return;
   if(!me.name){
-    const n=prompt("Name shown on the leaderboard","");
-    me.name=(n&&n.trim())?n.trim().slice(0,24):"Runner";
+    me.name="Runner";
   }
   me.history.push({day:dayIdx,at:Date.now(),name:SEG.name,d:SEG.len,t:rec.segTime,lvl:me.level});
   await saveMe();

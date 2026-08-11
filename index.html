@@ -1,6 +1,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Daily Segment</title>
+<meta name="theme-color" content="#FF4B12">
+<meta name="description" content="Run daily segments and race against your friends.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Daily Segment">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect fill='%23FF4B12' width='180' height='180'/><path d='M45 90l45-35 45 35' stroke='%23fff' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='90' cy='80' r='6' fill='%23fff'/></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%23FF4B12' width='192' height='192'/><path d='M48 96l48-36 48 36' stroke='%23fff' stroke-width='7' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='96' cy='84' r='6' fill='%23fff'/></svg>">
+<link rel="manifest" href="data:application/json,{%22name%22:%22Daily Segment%22,%22short_name%22:%22Segment%22,%22start_url%22:%22/%22,%22scope%22:%22/%22,%22display%22:%22standalone%22,%22theme_color%22:%22%23FF4B12%22,%22background_color%22:%22%23F3F4F6%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%23FF4B12' width='192' height='192'/><path d='M48 96l48-36 48 36' stroke='%23fff' stroke-width='7' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='96' cy='84' r='6' fill='%23fff'/></svg>%22,%22sizes%22:%22192x192%22,%22type%22:%22image/svg+xml%22,%22purpose%22:%22any%22},{%22src%22:%22data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%23FF4B12' width='512' height='512'/><path d='d='M128 256l128-96 128 96' stroke='%23fff' stroke-width='18' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='256' cy='224' r='16' fill='%23fff'/></svg>%22,%22sizes%22:%22512x512%22,%22type%22:%22image/svg+xml%22,%22purpose%22:%22any%22}]}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -138,6 +146,16 @@ body{background:#DFE2E7;font-family:Inter,system-ui,-apple-system,sans-serif;col
 .empty{padding:30px 22px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.5}
 .empty b{display:block;font-family:"Inter Tight";font-size:16px;color:var(--ink);margin-bottom:5px}
 .hide{display:none!important}
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:10;opacity:0;pointer-events:none;transition:opacity .3s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:11;background:var(--card);border-radius:18px 18px 0 0;padding:24px 20px;
+ max-height:80vh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.32,.72,0,1)}
+.sheet.on{transform:translateY(0)}
+.sheet h3{margin:0 0 16px;font-family:"Inter Tight";font-weight:700;font-size:18px}
+.sheet p{margin:0 0 16px;color:var(--muted);line-height:1.5}
+.sheet input{width:100%;border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-family:inherit;font-size:15px;margin-bottom:12px}
+.sheet input:focus{outline:2px solid var(--ink);outline-offset:0}
+.sheet button{margin-top:12px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 
@@ -240,6 +258,12 @@ body{background:#DFE2E7;font-family:Inter,system-ui,-apple-system,sans-serif;col
   <div class="gate" id="gate">
     <div id="gateBody"></div>
   </div>
+
+  <!-- sheet (bottom panel for modals) -->
+  <div class="scrim" id="scrim" onclick="closeSheet()"></div>
+  <div class="sheet" id="sheet">
+    <div id="sheetBody"></div>
+  </div>
 </div>
 
 <script>
@@ -313,6 +337,55 @@ function fail(title,detail,btnLabel,fn,extra){
   gate(`<h2>${esc(title)}</h2><div class="errbox">${detail}</div>
         <button class="btn" id="gBtn">${esc(btnLabel)}</button>${extra||''}`);
   $('gBtn').onclick=fn;
+}
+
+/* ---------------- sheet UI (replaces prompt/alert) --------- */
+function closeSheet(){
+  $('sheet').classList.remove('on');
+  $('scrim').classList.remove('on');
+}
+function showSheet(title,body,onConfirm){
+  $('sheetBody').innerHTML=body;
+  $('sheet').classList.add('on');
+  $('scrim').classList.add('on');
+  if(onConfirm)$('sheetConfirm').onclick=onConfirm;
+}
+function showLevelHelp(){
+  showSheet('How levels work',
+    `<p>Levels set your own target time for the segment, and label your entry on the board.</p>`+
+    LEVELS.map(l=>`<p><b>${l.n}</b> — ${mmss(l.pace)} /km reference pace</p>`).join('')+
+    `<p>The board itself shows everyone's real times, fastest first.</p>`+
+    `<button class="btn" onclick="closeSheet()">Got it</button>`);
+}
+function showNameInput(){
+  showSheet('Leaderboard name',
+    `<input type="text" id="nameInput" maxlength="24" placeholder="Your name" value="${esc(me.name||'')}"><br>`+
+    `<button class="btn" id="sheetConfirm">Save</button>`,
+    async()=>{
+      const n=$('nameInput').value.trim();
+      if(n){me.name=n;await saveMe();
+        if(myEntry){await postTime(myEntry.t)}
+        renderAll();closeSheet();
+      }
+    });
+  setTimeout(()=>$('nameInput').focus(),300);
+}
+function showTokenInput(){
+  showSheet('Mapbox token',
+    `<p>Paste your Mapbox token to turn on real maps.</p>`+
+    `<p style="font-size:12px;color:var(--faint)">Get one free at <b>mapbox.com</b> — sign up, then copy the 'Default public token' from your account page. It starts with <code>pk.</code></p>`+
+    `<input type="text" id="tokenInput" placeholder="pk.eyJ..." value="${esc(me.mbToken||'')}"><br>`+
+    `<button class="btn" id="sheetConfirm">Save token</button>`,
+    async()=>{
+      const v=$('tokenInput').value.trim();
+      if(v&&!v.startsWith("pk.")){
+        $('tokenInput').style.borderColor='#D92D20';
+        return;
+      }
+      me.mbToken=v||null;
+      await saveMe();paintMapBtn();drawPreview();renderAll();closeSheet();
+    });
+  setTimeout(()=>$('tokenInput').focus(),300);
 }
 
 /* ---------------- 1. location ---------------- */
@@ -472,8 +545,12 @@ async function loadElevation(){
              grade:+(((prof[prof.length-1]-prof[0])/SEG.len)*100).toFixed(1),
              src:"SRTM 30 m via opentopodata.org"};
     SEG.ele=e;
-    if(sb)await sb.from("segment_elevation").insert({segment_id:SEG.id,up_m:e.up,down_m:e.down,
-      net_grade:e.grade,profile:e.prof});
+    if(sb){
+      try{
+        await sb.from("segment_elevation").upsert({segment_id:SEG.id,up_m:e.up,down_m:e.down,
+          net_grade:e.grade,profile:e.prof},{onConflict:"segment_id"});
+      }catch(e){}
+    }
   }catch(e){SEG.ele={error:e.message||String(e)}}
 }
 function eleProfileSvg(){
@@ -513,16 +590,7 @@ function staticMapUrl(geom,w,h){
        + `?padding=30&access_token=${encodeURIComponent(tok)}`;
 }
 async function askToken(){
-  const t=prompt(
-    "Paste your Mapbox token to turn on real maps.\n\n"+
-    "Get one free at mapbox.com — sign up, then copy the 'Default public token' "+
-    "from your account page. It starts with pk.\n\n"+
-    "Leave this empty to remove it.", me.mbToken||"");
-  if(t===null)return;
-  const v=t.trim();
-  if(v&&!v.startsWith("pk.")){alert("That doesn't look like a Mapbox public token — it should start with pk.");return}
-  me.mbToken=v||null;
-  await saveMe();paintMapBtn();drawPreview();renderAll();
+  showTokenInput();
 }
 
 /* ---------------- drawing real geometry ---------------- */
@@ -658,22 +726,41 @@ document.querySelectorAll('.tab').forEach(t=>{
 });
 $('scroll').addEventListener('scroll',()=>$('topbar').classList.toggle('stuck',$('scroll').scrollTop>4));
 $('refreshBoard').onclick=async()=>{await loadBoard();renderAll()};
-$('lvlHelp').onclick=()=>alert(
- "Levels set your own target time for the segment, and label your entry on the board.\n\n"+
- LEVELS.map(l=>`${l.n} — ${mmss(l.pace)} /km reference pace`).join("\n")+
- "\n\nThe board itself shows everyone's real times, fastest first.");
+$('lvlHelp').onclick=showLevelHelp;
 function paintMapBtn(){}
-$('editName').onclick=async()=>{
-  const n=prompt("Name shown on the leaderboard",me.name||"");
-  if(n&&n.trim()){me.name=n.trim().slice(0,24);await saveMe();
-    if(myEntry){await postTime(myEntry.t)}renderAll()}
-};
+$('editName').onclick=showNameInput;
 
 /* ---------------- recorder: real GPS only ---------------- */
 let rec=blank();
-function blank(){return{on:false,phase:'idle',trace:[],dist:0,segT0:0,segTime:null,watch:null,tick:null,last:null,best:99}}
+function blank(){return{on:false,phase:'idle',trace:[],dist:0,segT0:0,segTime:null,watch:null,tick:null,last:null,best:99,reversed:false}}
 function gpsPill(cls,txt){const p=$('gpsPill');p.className='gpspill'+(cls?' '+cls:'');p.querySelector('span').textContent=txt}
 function setStatus(t,b,c){$('statusTxt').innerHTML=t;$('statusBadge').textContent=b;$('statusBox').className='status'+(c?' '+c:'')}
+
+function perpendicularAt(pt,bearing){
+  const perpBearing=bearing+Math.PI/2;
+  const d=30;
+  return [{lat:pt[0]+Math.cos(perpBearing)*d/RE/rad(1),lon:pt[1]+Math.sin(perpBearing)*d/RE/rad(1)},
+          {lat:pt[0]-Math.cos(perpBearing)*d/RE/rad(1),lon:pt[1]-Math.sin(perpBearing)*d/RE/rad(1)}];
+}
+function segmentBearing(p1,p2){
+  const dLa=rad(p2[0]-p1[0]), dLo=rad(p2[1]-p1[1]);
+  return Math.atan2(Math.sin(dLo)*Math.cos(rad(p2[0])),Math.cos(rad(p1[0]))*Math.sin(rad(p2[0]))-Math.sin(rad(p1[0]))*Math.cos(rad(p2[0]))*Math.cos(dLo));
+}
+function lineSegmentIntersection(p1,p2,l1,l2){
+  const x1=p1[1],y1=p1[0],x2=p2[1],y2=p2[0],x3=l1[1],y3=l1[0],x4=l2[1],y4=l2[0];
+  const denom=(x1-x2)*(y3-y4)-(y1-y2)*(x3-x4);
+  if(Math.abs(denom)<1e-10)return null;
+  const t=((x1-x3)*(y3-y4)-(y1-y3)*(x3-x4))/denom;
+  const u=-((x1-x2)*(y1-y3)-(y1-y2)*(x1-x3))/denom;
+  if(t>=0&&t<=1&&u>=-0.1&&u<=1.1)return [p1[0]+t*(p2[0]-p1[0]),p1[1]+t*(p2[1]-p1[1])];
+  return null;
+}
+function interpolateTime(p1,p2,t1,t2,crossing){
+  const d_total=hav(p1,p2);
+  if(d_total<1)return t2;
+  const d_to_cross=hav(p1,crossing);
+  return t1+(t2-t1)*(d_to_cross/d_total);
+}
 
 $('cta').onclick=()=>{
   rec=blank();rec.on=true;
@@ -721,15 +808,54 @@ function onFix(p,acc){
   if(acc>MAX_ACC){gpsPill('bad','Weak fix ±'+Math.round(acc)+'m — ignoring');return}
   gpsPill('live','GPS ±'+Math.round(acc)+'m');
   if(rec.last)rec.dist+=hav(rec.last,p);
-  rec.last=p;rec.trace.push({p,t:Date.now()});
+  rec.last=p;
+  const now_t=Date.now();
+  const lastTrace=rec.trace.length?rec.trace[rec.trace.length-1]:{p:p,t:now_t};
+  rec.trace.push({p,t:now_t});
+
   const A=SEG.geom[0], B=SEG.geom[SEG.geom.length-1];
-  if(rec.phase==='approach'&&hav(p,A)<GATE){
-    rec.phase='onseg';rec.segT0=Date.now();
-    setStatus('On the segment. Timing now.','Timing','armed');
-    $('mToK').textContent='To finish';
-    if(navigator.vibrate)navigator.vibrate(60);
-  }else if(rec.phase==='onseg'&&hav(p,B)<GATE){
-    rec.phase='done';rec.segTime=(Date.now()-rec.segT0)/1000;finishRec();
+  const bearing_forward=segmentBearing(SEG.geom[0],SEG.geom[1]);
+  const bearing_backward=segmentBearing(B,SEG.geom[SEG.geom.length-2]);
+  const [lineA_1,lineA_2]=perpendicularAt(A,bearing_forward);
+  const [lineB_1,lineB_2]=perpendicularAt(B,bearing_backward);
+
+  if(rec.phase==='approach'){
+    const distA=hav(p,A), distB=hav(p,B);
+    if(distA>30&&distB>30)return;
+
+    if(lastTrace.p!==p){
+      const crossA=lineSegmentIntersection(lastTrace.p,p,lineA_1,lineA_2);
+      const crossB=lineSegmentIntersection(lastTrace.p,p,lineB_1,lineB_2);
+
+      if(crossB&&!crossA){
+        rec.reversed=true;
+        rec.phase='onseg';
+        rec.segT0=interpolateTime(lastTrace.p,p,lastTrace.t,now_t,crossB)*1000;
+        setStatus('On the segment (reversed). Timing now.','Timing','armed');
+        $('mToK').textContent='To finish';
+        if(navigator.vibrate)navigator.vibrate(60);
+      }else if(crossA){
+        rec.reversed=false;
+        rec.phase='onseg';
+        rec.segT0=interpolateTime(lastTrace.p,p,lastTrace.t,now_t,crossA)*1000;
+        setStatus('On the segment. Timing now.','Timing','armed');
+        $('mToK').textContent='To finish';
+        if(navigator.vibrate)navigator.vibrate(60);
+      }
+    }
+  }else if(rec.phase==='onseg'){
+    const endPoint=rec.reversed?A:B;
+    const endLine=rec.reversed?[lineA_1,lineA_2]:[lineB_1,lineB_2];
+    if(hav(p,endPoint)>30)return;
+
+    if(lastTrace.p!==p){
+      const crossing=lineSegmentIntersection(lastTrace.p,p,endLine[0],endLine[1]);
+      if(crossing){
+        rec.phase='done';
+        rec.segTime=(interpolateTime(lastTrace.p,p,lastTrace.t,now_t,crossing)-rec.segT0)/1000;
+        finishRec();
+      }
+    }
   }
   paintRec();
 }

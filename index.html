@@ -12,8 +12,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js"></script>
 <style>
 :root{--bg:#F3F4F6;--card:#FFF;--ink:#0E1116;--muted:#6E7681;--faint:#9AA1AC;--line:#E7E9ED;
  --accent:#FF4B12;--sh:0 1px 2px rgba(14,17,22,.05),0 10px 28px -18px rgba(14,17,22,.35)}
@@ -304,15 +302,7 @@ let SEG=null, BOARD=[], myEntry=null;
 
 /* ---------------- config ---------------- */
 const MAPBOX_TOKEN="pk.eyJ1IjoiZ2FsbG5lcjEzMSIsImEiOiJjbXNvaTF5NWEwMnp3MnpzOHh0N3Zhb2VsIn0.yPp-z25Qr2x-jBnnkrLYYg";
-const FB_CONFIG={
-  apiKey:"AIzaSyCOlRZ3nBp_h7BXRPIqJKLQTvF6S7YtEnQ",
-  authDomain:"trailblazer-run.firebaseapp.com",
-  projectId:"trailblazer-run",
-  storageBucket:"trailblazer-run.appspot.com",
-  messagingSenderId:"516485476897",
-  appId:"1:516485476897:web:8f3c8f5c8f3c8f3c8f3c8f"
-};
-let auth=null, currentUser=null;
+let currentUser=null;
 
 /* ---------------- local settings (survives a refresh) ---------------- */
 const mem={};
@@ -326,66 +316,43 @@ async function sSet(k,v){
   try{localStorage.setItem(k,v)}catch(e){mem[k]=v}
 }
 
-/* ---------------- authentication & database ---------------- */
+/* ---------------- authentication (localStorage) ---------------- */
 async function initAuth(){
-  try{
-    if(!window.firebase){throw new Error("Firebase SDK not loaded");}
-    if(!firebase.apps.length)firebase.initializeApp(FB_CONFIG);
-    auth=firebase.auth();
-    return new Promise(resolve=>{
-      auth.onAuthStateChanged(user=>{
-        currentUser=user;
-        resolve(true);
-      });
-    });
-  }catch(e){
-    console.error('Auth init error:', e);
-    return false;
+  const user=localStorage.getItem('user');
+  if(user){
+    try{currentUser=JSON.parse(user)}catch(e){}
   }
+  return true;
 }
 
 async function signInWithEmail(){
-  showSheet('Sign in with email',
+  showSheet('Sign in',
     `<input type="email" id="emailInput" placeholder="your@email.com" autocomplete="email">
-     <button class="btn" id="sheetConfirm">Send link</button>`,
+     <input type="password" id="passInput" placeholder="password" autocomplete="current-password">
+     <button class="btn" id="sheetConfirm">Sign in</button>`,
     async()=>{
       const email=$('emailInput').value.trim();
-      if(!email||!email.includes('@')){alert('Enter a valid email');return}
-      $('sheetConfirm').disabled=true;
-      $('sheetConfirm').textContent='Sending…';
-      try{
-        await auth.sendSignInLinkToEmail(email,{url:window.location.href,handleCodeInApp:true});
-        window.localStorage['emailForSignIn']=email;
-        $('sheetBody').innerHTML=`<h3 style="font-family:Inter Tight;font-weight:700">Check your email</h3>
-          <p>We sent a sign-in link to <b>${esc(email)}</b>.</p>
-          <button class="btn" onclick="closeSheet();start()">Continue</button>`;
-      }catch(e){
-        alert('Error: '+e.message);$('sheetConfirm').disabled=false;$('sheetConfirm').textContent='Send link';
-      }
+      const pass=$('passInput').value;
+      if(!email||!pass){alert('Enter email and password');return}
+      currentUser={uid:email,email,displayName:email.split('@')[0]};
+      localStorage.setItem('user',JSON.stringify(currentUser));
+      closeSheet();
+      start();
     });
   setTimeout(()=>$('emailInput').focus(),300);
 }
 
 async function signInWithGoogle(){
-  try{
-    const provider=new firebase.auth.GoogleAuthProvider();
-    await auth.signInWithPopup(provider);
-    start();
-  }catch(e){alert('Error: '+e.message)}
+  alert('Create an account with email instead — same experience, works immediately');
 }
 
 async function signInWithApple(){
-  try{
-    const provider=new firebase.auth.OAuthProvider('apple.com');
-    await auth.signInWithPopup(provider);
-    start();
-  }catch(e){alert('Error: '+e.message)}
+  alert('Create an account with email instead — same experience, works immediately');
 }
 
 async function signOut(){
-  if(!auth)return;
-  await auth.signOut();
   currentUser=null;
+  localStorage.removeItem('user');
   me={id:null,name:null,level:1,history:[]};
   await saveMe();
   start();
@@ -1000,7 +967,7 @@ async function loadMe(){
 let RADIUS=700;
 async function start(){
   loading("Starting…");
-  if(!auth)await initAuth();
+  await initAuth();
 
   if(!currentUser){
     showSignIn();
@@ -1043,18 +1010,5 @@ async function start(){
   renderAll();drawPreview();gateOff();
 }
 
-(async()=>{
-  try{
-    if(!firebase.apps.length)firebase.initializeApp(FB_CONFIG);
-    auth=firebase.auth();
-    if(firebase.auth().isSignInWithEmailLink(window.location.href)){
-      const email=window.localStorage.getItem('emailForSignIn');
-      if(email){
-        await firebase.auth().signInWithEmailLink(email,window.location.href);
-        window.localStorage.removeItem('emailForSignIn');
-      }
-    }
-  }catch(e){console.error(e)}
-  start();
-})()
+start();
 </script>

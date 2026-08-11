@@ -286,14 +286,24 @@
     async function initializePageUI() {
       async function initMap() {
       const { data: profile, error } = await window.AppAPI.getProfile(userId);
+      console.log('Profile loaded:', { profile, error });
+
       if (error || !profile) {
         console.error('Failed to load profile:', error);
         window.location.href = '/area-setup.html';
         return;
       }
 
+      if (!profile.home_lat || !profile.home_lng) {
+        console.error('Profile missing home_lat or home_lng', profile);
+        window.location.href = '/area-setup.html';
+        return;
+      }
+
       currentProfile = profile;
       document.getElementById('areaBtn').textContent = profile.home_label || 'Area';
+
+      console.log('Initializing map at', [profile.home_lng, profile.home_lat], 'zoom 14');
 
       // Initialize Mapbox
       map = new mapboxgl.Map({

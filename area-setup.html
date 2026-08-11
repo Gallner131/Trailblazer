@@ -286,6 +286,8 @@
     })();
 
     function initializePageUI() {
+      console.log('initializePageUI() called');
+
       // Initialize map
       map = new mapboxgl.Map({
         container: 'map',
@@ -428,10 +430,16 @@
     });
 
     // Save
+    console.log('Setting up save button handler');
     const saveBtn = document.getElementById('saveBtn');
-    saveBtn.addEventListener('click', async () => {
-      saveBtn.disabled = true;
-      showStatus('Saving your area…');
+    console.log('saveBtn element:', saveBtn);
+    if (!saveBtn) {
+      console.error('saveBtn is null! Element not found in DOM');
+    } else {
+      saveBtn.addEventListener('click', async () => {
+        console.log('Save button clicked!');
+        saveBtn.disabled = true;
+        showStatus('Saving your area…');
 
       // Verify session is still valid before saving
       const { data: { session } } = await window.supabaseClient.auth.getSession();
@@ -477,7 +485,8 @@
 
       // Redirect to map immediately after profile save
       window.location.href = '/home-map.html';
-    });
+      });
+    }
 
     function showError(msg) {
       const box = document.getElementById('errorBox');
@@ -491,7 +500,9 @@
       status.style.display = 'block';
     }
 
+    console.log('About to call initArea()');
     initArea();
+    console.log('initializePageUI() complete');
     }
   </script>
 </body>

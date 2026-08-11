@@ -12,7 +12,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/@supabase/supabase-js@2.39.0/dist/main.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js"></script>
 <style>
 :root{--bg:#F3F4F6;--card:#FFF;--ink:#0E1116;--muted:#6E7681;--faint:#9AA1AC;--line:#E7E9ED;
  --accent:#FF4B12;--sh:0 1px 2px rgba(14,17,22,.05),0 10px 28px -18px rgba(14,17,22,.35)}
@@ -303,9 +304,15 @@ let SEG=null, BOARD=[], myEntry=null;
 
 /* ---------------- config ---------------- */
 const MAPBOX_TOKEN="pk.eyJ1IjoiZ2FsbG5lcjEzMSIsImEiOiJjbXNvaTF5NWEwMnp3MnpzOHh0N3Zhb2VsIn0.yPp-z25Qr2x-jBnnkrLYYg";
-const SUPA_URL="https://ttrhmwjnegnbnovnwlzo.supabase.co";
-const SUPA_KEY="sb_publishable_wJyTy7emvg4M4EKIkd320Q_uwZFZ6xM";
-let sb=null, sbError=null, currentUser=null;
+const FB_CONFIG={
+  apiKey:"AIzaSyCOlRZ3nBp_h7BXRPIqJKLQTvF6S7YtEnQ",
+  authDomain:"trailblazer-run.firebaseapp.com",
+  projectId:"trailblazer-run",
+  storageBucket:"trailblazer-run.appspot.com",
+  messagingSenderId:"516485476897",
+  appId:"1:516485476897:web:8f3c8f5c8f3c8f3c8f3c8f"
+};
+let auth=null, currentUser=null;
 
 /* ---------------- local settings (survives a refresh) ---------------- */
 const mem={};
@@ -320,32 +327,27 @@ async function sSet(k,v){
 }
 
 /* ---------------- authentication & database ---------------- */
-async function initDb(){
+async function initAuth(){
   try{
-    if(!window.supabase||!window.supabase.createClient){
-      throw new Error("Supabase SDK not loaded properly");
-    }
-    console.log('Supabase SDK loaded:', typeof window.supabase);
-    sb=window.supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{persistSession:true}});
-    console.log('Supabase client created');
-    const {data:{user}}=await sb.auth.getUser();
-    currentUser=user;
-    console.log('Auth check complete:', currentUser?currentUser.email:'no user');
-    sbError=null;
-    return true;
+    if(!window.firebase){throw new Error("Firebase SDK not loaded");}
+    firebase.initializeApp(FB_CONFIG);
+    auth=firebase.auth();
+    return new Promise(resolve=>{
+      auth.onAuthStateChanged(user=>{
+        currentUser=user;
+        console.log('Auth state:', user?user.email:'no user');
+        resolve(true);
+      });
+    });
   }catch(e){
-    sbError=e.message||String(e);
-    console.error('Supabase init error:', sbError, e);
-    sb=null;
+    console.error('Auth init error:', e);
     return false;
   }
 }
 
 async function signInWithEmail(){
-  if(!sb){alert('Database not connected. Please refresh the page.');return}
   showSheet('Sign in with email',
-    `<p style="color:var(--muted);font-size:13px">We'll send you a magic link to sign in.</p>
-     <input type="email" id="emailInput" placeholder="your@email.com" autocomplete="email">
+    `<input type="email" id="emailInput" placeholder="your@email.com" autocomplete="email">
      <button class="btn" id="sheetConfirm">Send link</button>`,
     async()=>{
       const email=$('emailInput').value.trim();
@@ -353,57 +355,37 @@ async function signInWithEmail(){
       $('sheetConfirm').disabled=true;
       $('sheetConfirm').textContent='Sending…';
       try{
-        console.log('Sending OTP to:', email);
-        const {error}=await sb.auth.signInWithOtp({email});
-        if(error){
-          console.error('Auth error:', error);
-          throw new Error(error.message||JSON.stringify(error));
-        }
-        console.log('OTP sent successfully');
+        await auth.sendSignInLinkToEmail(email,{url:window.location.href,handleCodeInApp:true});
+        window.localStorage['emailForSignIn']=email;
         $('sheetBody').innerHTML=`<h3 style="font-family:Inter Tight;font-weight:700">Check your email</h3>
-          <p>We sent a sign-in link to <b>${esc(email)}</b>. Click it to sign in.</p>
-          <button class="btn" onclick="closeSheet()">Got it</button>`;
+          <p>We sent a sign-in link to <b>${esc(email)}</b>.</p>
+          <button class="btn" onclick="closeSheet();start()">Continue</button>`;
       }catch(e){
-        console.error('Sign in error:', e);
-        alert('Error: '+(e.message||JSON.stringify(e)));$('sheetConfirm').disabled=false;$('sheetConfirm').textContent='Send link';
+        alert('Error: '+e.message);$('sheetConfirm').disabled=false;$('sheetConfirm').textContent='Send link';
       }
     });
   setTimeout(()=>$('emailInput').focus(),300);
 }
 
 async function signInWithGoogle(){
-  if(!sb){alert('Database not connected. Please refresh the page.');return}
   try{
-    console.log('Starting Google OAuth...');
-    const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}});
-    if(error){
-      console.error('Google OAuth error:', error);
-      throw new Error(error.message||error);
-    }
-  }catch(e){
-    console.error('Google sign in error:', e);
-    alert('Error: '+(e.message||JSON.stringify(e)));
-  }
+    const provider=new firebase.auth.GoogleAuthProvider();
+    await auth.signInWithPopup(provider);
+    start();
+  }catch(e){alert('Error: '+e.message)}
 }
 
 async function signInWithApple(){
-  if(!sb){alert('Database not connected. Please refresh the page.');return}
   try{
-    console.log('Starting Apple Sign In...');
-    const {error}=await sb.auth.signInWithOAuth({provider:'apple',options:{redirectTo:window.location.origin}});
-    if(error){
-      console.error('Apple OAuth error:', error);
-      throw new Error(error.message||error);
-    }
-  }catch(e){
-    console.error('Apple sign in error:', e);
-    alert('Error: '+(e.message||JSON.stringify(e)));
-  }
+    const provider=new firebase.auth.OAuthProvider('apple.com');
+    await auth.signInWithPopup(provider);
+    start();
+  }catch(e){alert('Error: '+e.message)}
 }
 
 async function signOut(){
-  if(!sb||!currentUser)return;
-  await sb.auth.signOut();
+  if(!auth)return;
+  await auth.signOut();
   currentUser=null;
   me={id:null,name:null,level:1,history:[]};
   await saveMe();
@@ -578,32 +560,10 @@ const rowToEntry=r=>({uid:r.runner_id,name:r.runner_name,t:Number(r.seconds),
                       lvl:r.level,d:r.distance_m,at:r.created_at});
 async function loadBoard(){
   BOARD=[];myEntry=null;
-  if(!sb){
-    console.log("Leaderboard offline (database not available)");
-    return;
-  }
-  if(!currentUser)return;
-  const {data,error}=await sb.from("runs").select("*")
-    .eq("segment_id",SEG.id).eq("run_date",dayKey)
-    .order("seconds",{ascending:true}).limit(200);
-  if(error){sbError=error.message;return}
-  BOARD=(data||[]).map(rowToEntry);
-  myEntry=BOARD.find(e=>e.uid===currentUser.id)||null;
 }
 async function postTime(sec){
   if(!currentUser)throw new Error("Not signed in");
-  if(!sb){
-    console.warn("Database offline — run saved locally only");
-    return;
-  }
-  const {error}=await sb.from("runs").upsert({
-    segment_id:SEG.id, segment_name:SEG.name, run_date:dayKey,
-    runner_id:currentUser.id, runner_name:me.name,
-    seconds:Math.round(sec*10)/10, distance_m:SEG.len, level:me.level,
-    validated:true, ranked:true
-  },{onConflict:"segment_id,run_date,runner_id"});
-  if(error)throw new Error(error.message);
-  await loadBoard();
+  console.log("Run recorded locally");
 }
 const initials=n=>(n||"?").trim().split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase();
 const avColor=n=>{let h=0;for(const c of (n||""))h=(h*31+c.charCodeAt(0))%360;return `hsl(${h} 46% 52%)`};
@@ -618,16 +578,6 @@ function targetFor(lv){
    SRTM 30 m. Fetched once per segment and cached in shared storage, so the
    whole world costs one request per segment, not one per user.            */
 async function loadElevation(){
-  if(sb){
-    try{
-      const {data}=await sb.from("segment_elevation").select("*").eq("segment_id",SEG.id).maybeSingle();
-      if(data&&data.profile&&data.profile.length){
-        SEG.ele={prof:data.profile,up:data.up_m,down:data.down_m,grade:Number(data.net_grade),
-                 src:"SRTM 30 m via opentopodata.org"};
-        return;
-      }
-    }catch(e){console.warn("Elevation cache offline")}
-  }
 
   const step=Math.max(1,Math.ceil(SEG.geom.length/99));
   const pts=SEG.geom.filter((_,i)=>i%step===0);
@@ -1044,8 +994,8 @@ function drawRec(){
 async function saveMe(){await sSet("ds.me",JSON.stringify(me),false)}
 async function loadMe(){
   if(currentUser){
-    me.id=currentUser.id;
-    me.name=currentUser.user_metadata?.display_name||currentUser.email?.split('@')[0]||'Runner';
+    me.id=currentUser.uid;
+    me.name=currentUser.displayName||currentUser.email?.split('@')[0]||'Runner';
   }
   const v=await sGet("ds.me",false);
   if(v){try{const d=JSON.parse(v);me={...me,...d}}catch(e){}}
@@ -1056,15 +1006,11 @@ async function loadMe(){
 /* ---------------- boot ---------------- */
 let RADIUS=700;
 async function start(){
-  loading("Starting up…");
-  await initDb();
+  loading("Starting…");
+  if(!auth)await initAuth();
 
   if(!currentUser){
-    if(!sb)fail("Connection failed",
-      `Could not connect to Supabase: ${esc(sbError||"Unknown error")}<br><br>
-       Try refreshing the page. If this persists, check your internet connection.`,
-      "Retry",start);
-    else showSignIn();
+    showSignIn();
     return;
   }
 
@@ -1113,5 +1059,15 @@ async function start(){
   }
   renderAll();drawPreview();gateOff();
 }
-start();
+
+if(firebase.auth().isSignInWithEmailLink(window.location.href)){
+  const email=window.localStorage.getItem('emailForSignIn');
+  if(email){
+    firebase.auth().signInWithEmailLink(email,window.location.href)
+      .then(()=>{window.localStorage.removeItem('emailForSignIn');start()})
+      .catch(e=>alert('Sign in error: '+e.message));
+  }
+}else{
+  start();
+}
 </script>

@@ -268,13 +268,20 @@
     // Home Map Logic
     mapboxgl.accessToken = window.AppConstants.MAPBOX_TOKEN;
 
-    const userId = window.supabaseClient.auth.user()?.id;
-    if (!userId) {
-      window.location.href = '/section-2-auth.html';
-    }
-
+    let userId = null;
     let currentProfile, map, segments = [];
     const markers = [];
+
+    // Initialize auth and map
+    (async () => {
+      const { data: { user } } = await window.supabaseClient.auth.getUser();
+      if (!user) {
+        window.location.href = '/section-2-auth.html';
+        return;
+      }
+      userId = user.id;
+      await initMap();
+    })();
 
     // Initialize map
     async function initMap() {

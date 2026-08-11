@@ -273,11 +273,17 @@
 
     let currentLat, currentLng, currentLabel;
     let map, isDragging = false;
-    const userId = window.supabaseClient.auth.user()?.id;
+    let userId = null;
 
-    if (!userId) {
-      window.location.href = '/section-2-auth.html';
-    }
+    // Initialize auth and check user
+    (async () => {
+      const { data: { user } } = await window.supabaseClient.auth.getUser();
+      if (!user) {
+        window.location.href = '/section-2-auth.html';
+        return;
+      }
+      userId = user.id;
+    })();
 
     // Initialize map
     map = new mapboxgl.Map({

@@ -1,0 +1,174 @@
+<!-- Trailblazer Section 2: Auth -->
+<!-- Sign-in screen: full-screen, centred, Supabase Google OAuth -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Trailblazer</title>
+  <meta name="theme-color" content="#FF4B12">
+  <meta name="description" content="A new running challenge every day, right near you.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Trailblazer">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F3F4F6;
+      --card: #FFF;
+      --ink: #0E1116;
+      --muted: #6E7681;
+      --faint: #9AA1AC;
+      --line: #E7E9ED;
+      --accent: #FF4B12;
+      --sh: 0 1px 2px rgba(14, 17, 22, .05), 0 10px 28px -18px rgba(14, 17, 22, .35);
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
+      margin: 0;
+      height: 100%;
+    }
+    body {
+      background: var(--bg);
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .signin-container {
+      width: 100%;
+      max-width: 360px;
+      text-align: center;
+    }
+    .signin-container h1 {
+      font-family: "Inter Tight";
+      font-weight: 800;
+      font-size: 28px;
+      margin: 0 0 8px;
+      letter-spacing: -0.03em;
+    }
+    .signin-container .tagline {
+      color: var(--muted);
+      font-size: 14px;
+      margin: 0 0 32px;
+      line-height: 1.5;
+    }
+    .signin-btn {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--card);
+      color: var(--ink);
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 16px;
+      padding: 16px;
+      cursor: pointer;
+      box-shadow: var(--sh);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      margin-bottom: 16px;
+      transition: all 0.2s;
+    }
+    .signin-btn:active {
+      transform: translateY(1px);
+    }
+    .signin-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .signin-btn.loading {
+      background: var(--bg);
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--line);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .error-box {
+      background: #FFF1EC;
+      border: 1px solid #FFD9CB;
+      color: #8C2C0E;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 12.5px;
+      line-height: 1.45;
+      margin-bottom: 16px;
+      word-break: break-word;
+    }
+    .footer {
+      margin-top: 24px;
+      font-size: 11px;
+      color: var(--faint);
+    }
+    .footer a {
+      color: var(--muted);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .fullscreen-spinner {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 100;
+    }
+    .fullscreen-spinner .spinner {
+      width: 26px;
+      height: 26px;
+      border: 3px solid var(--line);
+    }
+    .fullscreen-spinner p {
+      color: var(--muted);
+      font-size: 14px;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="signin-container">
+    <h1>Trailblazer</h1>
+    <p class="tagline">A new running challenge every day, right near you.</p>
+
+    <div id="errorBox" class="error-box" style="display:none;"></div>
+
+    <button id="signinBtn" class="signin-btn">
+      <span id="btnText">Continue with Google</span>
+      <div id="spinner" class="spinner" style="display:none;"></div>
+    </button>
+
+    <div class="footer">
+      <a href="#privacy">Privacy</a> · <a href="#terms">Terms</a>
+    </div>
+  </div>
+
+  <div id="fullscreenSpinner" class="fullscreen-spinner" style="display:none;">
+    <div class="spinner"></div>
+    <p>Signing you in…</p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="lib/auth.js"></script>
+</body>
+</html>

@@ -6,29 +6,33 @@
 
 ## Before running: Supabase setup
 
-### 1. Enable Google OAuth in Supabase
+### 1. Set Site URL in Supabase
+
+1. Go to Supabase dashboard → your project → **Authentication** → **URL Configuration**
+2. Set **Site URL** to `https://trailblazer-khn2.vercel.app`
+3. This tells Google where to redirect after sign-in (Supabase handles the callback internally)
+
+### 2. Enable Google OAuth in Supabase
 
 1. Go to Supabase dashboard → your project → **Authentication** → **Providers**
 2. Find **Google** and click it
 3. You will need Google OAuth credentials:
    - Go to [Google Cloud Console](https://console.cloud.google.com/)
    - Create a new project (or use existing)
-   - Enable Google+ API
    - Create OAuth 2.0 credentials (Web application type)
-   - Add authorized redirect URIs:
-     - `https://YOUR_SUPABASE_URL.supabase.co/auth/v1/callback`
-     - `http://localhost:5173/auth/v1/callback` (for local dev)
+   - Add authorized redirect URI:
+     - `https://ttrhmwjnegnbnovnwlzo.supabase.co/auth/v1/callback`
    - Copy **Client ID** and **Client Secret**
 4. Paste them into the Supabase Google provider form and save
 
-### 2. Get your Supabase API keys
+### 3. Get your Supabase API keys
 
 1. Go to Supabase dashboard → your project → **Settings** → **API**
 2. Copy:
    - **Project URL** — paste as `SUPABASE_URL` in `lib/auth.js`
    - **anon public** — paste as `SUPABASE_ANON_KEY` in `lib/auth.js`
 
-### 3. Update `lib/auth.js`
+### 4. Update `lib/auth.js`
 
 Replace the placeholders at the top:
 ```javascript

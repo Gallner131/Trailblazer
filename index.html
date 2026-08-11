@@ -12,6 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root{--bg:#F3F4F6;--card:#FFF;--ink:#0E1116;--muted:#6E7681;--faint:#9AA1AC;--line:#E7E9ED;
  --accent:#FF4B12;--sh:0 1px 2px rgba(14,17,22,.05),0 10px 28px -18px rgba(14,17,22,.35)}
@@ -264,8 +265,7 @@ body{background:#DFE2E7;font-family:Inter,system-ui,-apple-system,sans-serif;col
     <div style="max-width:320px;margin:0 auto">
       <h2 style="font-family:Inter Tight;font-weight:800;font-size:28px;margin:0 0 8px">Trailblazer</h2>
       <p style="color:var(--muted);font-size:14px;margin:0 0 32px">A new running challenge every day, right near you.</p>
-      <input type="email" id="signInEmail" placeholder="your@email.com" style="width:100%;border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-family:inherit;font-size:15px;margin-bottom:12px">
-      <button class="btn" id="signInBtn" style="margin-bottom:0">Create account</button>
+      <div id="googleSignInBtn" style="display:flex;justify-content:center"></div>
     </div>
   </div>
 
@@ -356,15 +356,22 @@ function fail(title,detail,btnLabel,fn,extra){
 function showSignIn(){
   $('gate').classList.add('hide');
   $('signInForm').classList.remove('hide');
-  $('signInBtn').onclick=()=>{
-    const email=$('signInEmail').value.trim();
-    if(!email||!email.includes('@')){alert('Enter a valid email');return}
-    currentUser={uid:email,email,displayName:email.split('@')[0]};
-    localStorage.setItem('user',JSON.stringify(currentUser));
-    $('signInForm').classList.add('hide');
-    start();
-  };
-  $('signInEmail').focus();
+  if(window.google){
+    google.accounts.id.initialize({
+      client_id:'516485476897-8f3c8f3c8f3c8f3c8f3c8f3c8f3c8f3c.apps.googleusercontent.com',
+      callback:handleGoogleSignIn
+    });
+    google.accounts.id.renderButton($('googleSignInBtn'),{theme:'outline',size:'large',width:'320'});
+  }
+}
+
+function handleGoogleSignIn(response){
+  if(!response.credential)return;
+  const decoded=JSON.parse(atob(response.credential.split('.')[1]));
+  currentUser={uid:decoded.sub,email:decoded.email,displayName:decoded.name};
+  localStorage.setItem('user',JSON.stringify(currentUser));
+  $('signInForm').classList.add('hide');
+  start();
 }
 
 /* ---------------- sheet UI (replaces prompt/alert) --------- */

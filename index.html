@@ -925,23 +925,27 @@ function paintRec(){
   drawRec();
 }
 function drawRec(){
-  if(!SEG)return;
+  if(!SEG||!SEG.geom||!SEG.geom.length){console.error('No segment geometry');return}
   const W=340,H=260;
-  const all=SEG.geom.concat(rec.trace.map(t=>t.p));
-  const f=project(all,W,H,26), d=pathOf(SEG.geom,f);
-  const a=f(SEG.geom[0]), b=f(SEG.geom[SEG.geom.length-1]);
-  const tr=rec.trace.length>1?`<path d="${pathOf(rec.trace.map(t=>t.p),f)}" stroke="#2E90FA" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>`:'';
-  let m='';
-  if(rec.last){const q=f(rec.last);
-    m=`<circle cx="${q[0]}" cy="${q[1]}" r="12" fill="#2E90FA" opacity=".18"/><circle cx="${q[0]}" cy="${q[1]}" r="6" fill="#2E90FA" stroke="#fff" stroke-width="2.5"/>`}
-  if(!d)return;
-  $('recSvg').innerHTML=`
-    <path d="${d}" stroke="#fff" stroke-width="11" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="${d}" stroke="#FF4B12" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="${rec.phase==='onseg'?1:.5}"/>
-    ${tr}
-    <circle cx="${a[0]}" cy="${a[1]}" r="8" fill="#fff" stroke="#FF4B12" stroke-width="4"/>
-    <circle cx="${b[0]}" cy="${b[1]}" r="9" fill="#0E1116" stroke="#fff" stroke-width="3"/>
-    ${m}`;
+  try{
+    const all=SEG.geom.concat(rec.trace.map(t=>t.p));
+    const f=project(all,W,H,26);
+    if(!f){console.error('Projection failed');return}
+    const d=pathOf(SEG.geom,f);
+    if(!d){console.error('Path generation failed');return}
+    const a=f(SEG.geom[0]), b=f(SEG.geom[SEG.geom.length-1]);
+    const tr=rec.trace.length>1?`<path d="${pathOf(rec.trace.map(t=>t.p),f)}" stroke="#2E90FA" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>`:'';
+    let m='';
+    if(rec.last){const q=f(rec.last);
+      m=`<circle cx="${q[0]}" cy="${q[1]}" r="12" fill="#2E90FA" opacity=".18"/><circle cx="${q[0]}" cy="${q[1]}" r="6" fill="#2E90FA" stroke="#fff" stroke-width="2.5"/>`}
+    $('recSvg').innerHTML=`
+      <path d="${d}" stroke="#fff" stroke-width="11" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="${d}" stroke="#FF4B12" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="${rec.phase==='onseg'?1:.5}"/>
+      ${tr}
+      <circle cx="${a[0]}" cy="${a[1]}" r="8" fill="#fff" stroke="#FF4B12" stroke-width="4"/>
+      <circle cx="${b[0]}" cy="${b[1]}" r="9" fill="#0E1116" stroke="#fff" stroke-width="3"/>
+      ${m}`;
+  }catch(e){console.error('Draw error:',e)}
 }
 
 /* ---------------- profile persistence ---------------- */

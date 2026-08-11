@@ -326,20 +326,24 @@ async function initAuth(){
 }
 
 async function signInWithEmail(){
-  showSheet('Sign in',
-    `<input type="email" id="emailInput" placeholder="your@email.com" autocomplete="email">
-     <input type="password" id="passInput" placeholder="password" autocomplete="current-password">
-     <button class="btn" id="sheetConfirm">Sign in</button>`,
-    async()=>{
-      const email=$('emailInput').value.trim();
-      const pass=$('passInput').value;
-      if(!email||!pass){alert('Enter email and password');return}
-      currentUser={uid:email,email,displayName:email.split('@')[0]};
-      localStorage.setItem('user',JSON.stringify(currentUser));
-      closeSheet();
-      start();
-    });
+  $('sheetBody').innerHTML=`
+    <h3 style="font-family:Inter Tight;font-weight:700;margin:0 0 12px">Create account</h3>
+    <input type="email" id="emailInput" placeholder="your@email.com" autocomplete="email" style="margin-bottom:8px">
+    <input type="password" id="passInput" placeholder="any password" autocomplete="current-password" style="margin-bottom:16px">
+    <button class="btn" onclick="doEmailSignIn()">Sign in</button>`;
+  $('sheet').classList.add('on');
+  $('scrim').classList.add('on');
   setTimeout(()=>$('emailInput').focus(),300);
+}
+
+function doEmailSignIn(){
+  const email=$('emailInput').value.trim();
+  const pass=$('passInput').value;
+  if(!email||!pass){alert('Enter email and password');return}
+  currentUser={uid:email,email,displayName:email.split('@')[0]};
+  localStorage.setItem('user',JSON.stringify(currentUser));
+  closeSheet();
+  start();
 }
 
 async function signInWithGoogle(){

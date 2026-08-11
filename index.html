@@ -602,12 +602,6 @@ async function loadElevation(){
              grade:+(((prof[prof.length-1]-prof[0])/SEG.len)*100).toFixed(1),
              src:"SRTM 30 m via opentopodata.org"};
     SEG.ele=e;
-    if(sb){
-      try{
-        await sb.from("segment_elevation").upsert({segment_id:SEG.id,up_m:e.up,down_m:e.down,
-          net_grade:e.grade,profile:e.prof},{onConflict:"segment_id"});
-      }catch(e){}
-    }
   }catch(e){SEG.ele={error:e.message||String(e)}}
 }
 function eleProfileSvg(){
@@ -1047,16 +1041,6 @@ async function start(){
 
   loading("Loading today's board…");
   await loadBoard();
-  if(sbError){
-    fail("Leaderboard offline",
-      `The app found your segment and can still time your run, but it could not reach the database.`
-      +`<br><br><b>Error:</b> ${esc(sbError)}`,
-      "Try again",start,
-      `<button class="link" id="skipDb">Carry on without the leaderboard</button>`);
-    const sk=$('skipDb');
-    if(sk)sk.onclick=()=>{sbError=null;renderAll();drawPreview();gateOff()};
-    return;
-  }
   renderAll();drawPreview();gateOff();
 }
 

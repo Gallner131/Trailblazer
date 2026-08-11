@@ -934,11 +934,14 @@ function drawRec(){
   let m='';
   if(rec.last){const q=f(rec.last);
     m=`<circle cx="${q[0]}" cy="${q[1]}" r="12" fill="#2E90FA" opacity=".18"/><circle cx="${q[0]}" cy="${q[1]}" r="6" fill="#2E90FA" stroke="#fff" stroke-width="2.5"/>`}
-  $('recSvg').innerHTML=`<rect width="${W}" height="${H}" fill="#E9ECE6"/>
+  if(!d)return;
+  $('recSvg').innerHTML=`
     <path d="${d}" stroke="#fff" stroke-width="11" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     <path d="${d}" stroke="#FF4B12" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="${rec.phase==='onseg'?1:.5}"/>
-    ${tr}<circle cx="${a[0]}" cy="${a[1]}" r="8" fill="#fff" stroke="#FF4B12" stroke-width="4"/>
-    <circle cx="${b[0]}" cy="${b[1]}" r="9" fill="#0E1116" stroke="#fff" stroke-width="3"/>${m}`;
+    ${tr}
+    <circle cx="${a[0]}" cy="${a[1]}" r="8" fill="#fff" stroke="#FF4B12" stroke-width="4"/>
+    <circle cx="${b[0]}" cy="${b[1]}" r="9" fill="#0E1116" stroke="#fff" stroke-width="3"/>
+    ${m}`;
 }
 
 /* ---------------- profile persistence ---------------- */

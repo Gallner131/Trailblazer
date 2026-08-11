@@ -297,9 +297,27 @@
   <script src="lib/auth.js"></script>
   <script>
     // Segment Sheet Logic
-    const userId = window.supabaseClient.auth.user()?.id;
-    if (!userId) {
-      window.location.href = '/section-2-auth.html';
+    let userId;
+
+    // Get current user session
+    window.supabaseClient.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        window.location.href = '/section-2-auth.html';
+      } else {
+        userId = session.user.id;
+        loadSegment();
+      }
+    });
+
+    async function ensureUserId() {
+      if (!userId) {
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        if (!session) {
+          window.location.href = '/section-2-auth.html';
+        } else {
+          userId = session.user.id;
+        }
+      }
     }
 
     // Get segment ID from query param
@@ -323,18 +341,6 @@
 
     // Load segment and board
     async function loadSegment() {
-      // Get segment from database
-      const { data: segments, error: segError } = await window.AppAPI.getSegmentsInBounds({
-        minLat: -90,
-        minLng: -180,
-        maxLat: 90,
-        maxLng: 180,
-        limit: 1
-      });
-
-      // In a real implementation, you'd query segments table by ID
-      // For now, we'll load it when rendering
-
       // Get board for today
       const { data: boardData, error: boardError } = await window.AppAPI.getSegmentBoardToday(segmentId, currentLevel);
       if (!boardError && boardData) {
@@ -421,6 +427,7 @@
           btn.setAttribute('aria-pressed', 'true');
           currentLevel = parseInt(btn.dataset.level);
 
+          await ensureUserId();
           const { data: boardData } = await window.AppAPI.getSegmentBoardToday(segmentId, currentLevel);
           if (boardData) {
             board = boardData;
@@ -429,8 +436,6 @@
         });
       });
     }
-
-    loadSegment();
   </script>
 </body>
 </html>

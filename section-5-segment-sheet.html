@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Trailblazer — Segment</title>
+  <meta name="theme-color" content="#FF4B12">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F3F4F6;
+      --card: #FFF;
+      --ink: #0E1116;
+      --muted: #6E7681;
+      --faint: #9AA1AC;
+      --line: #E7E9ED;
+      --accent: #FF4B12;
+      --sh: 0 1px 2px rgba(14,17,22,.05), 0 10px 28px -18px rgba(14,17,22,.35);
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+    body {
+      background: var(--bg);
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+    .phone {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .sheet {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--card);
+      border-radius: 20px 20px 0 0;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      max-height: 100%;
+      box-shadow: 0 -10px 30px -10px rgba(14,17,22,.2);
+    }
+    .sheet.collapsed {
+      height: 180px;
+    }
+    .sheet.expanded {
+      height: 90vh;
+    }
+    .sheet-handle {
+      padding: 8px 0 4px;
+      text-align: center;
+      flex: none;
+    }
+    .handle-bar {
+      width: 40px;
+      height: 4px;
+      background: var(--line);
+      border-radius: 2px;
+      margin: 0 auto;
+    }
+    .sheet-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 16px 16px;
+    }
+    .sheet-content::-webkit-scrollbar {
+      width: 6px;
+    }
+    .sheet-content::-webkit-scrollbar-thumb {
+      background: var(--line);
+      border-radius: 3px;
+    }
+    .seg-name {
+      font-family: "Inter Tight";
+      font-weight: 800;
+      font-size: 22px;
+      margin: 12px 0 3px;
+      line-height: 1.1;
+    }
+    .seg-location {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .facts {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      padding: 12px 0;
+      margin: 12px 0;
+    }
+    .fact {
+      text-align: center;
+    }
+    .fact-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: var(--faint);
+      margin-bottom: 3px;
+    }
+    .fact-value {
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .elevation {
+      height: 100px;
+      background: var(--bg);
+      border-radius: 10px;
+      margin: 12px 0;
+      border: 1px solid var(--line);
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .target-time {
+      padding: 12px;
+      background: var(--bg);
+      border-radius: 10px;
+      margin: 12px 0;
+      font-size: 13px;
+    }
+    .target-time .label {
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .target-time .time {
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 18px;
+    }
+    .level-filter {
+      display: flex;
+      gap: 6px;
+      margin: 12px 0;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .level-btn {
+      flex: 0 0 auto;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--card);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.1s;
+    }
+    .level-btn[aria-pressed="true"] {
+      background: var(--ink);
+      color: var(--card);
+      border-color: var(--ink);
+    }
+    .board {
+      margin: 12px 0;
+    }
+    .board-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+    .board-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 4px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .board-row:hover {
+      background: var(--bg);
+    }
+    .board-row.me {
+      background: color-mix(in srgb, var(--accent) 8%, #fff);
+    }
+    .rank {
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--faint);
+      width: 24px;
+      text-align: center;
+      flex: none;
+    }
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--ink);
+      color: var(--card);
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex: none;
+    }
+    .runner-name {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .runner-time {
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 13px;
+      flex: none;
+    }
+    .btn {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #fff;
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 16px;
+      padding: 14px;
+      cursor: pointer;
+      box-shadow: 0 6px 18px -8px rgba(255,75,18,.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 12px 0;
+    }
+    .btn:active {
+      transform: translateY(1px);
+    }
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .empty-state {
+      padding: 24px 0;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .error-box {
+      background: #FFF1EC;
+      border: 1px solid #FFD9CB;
+      color: #8C2C0E;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 12px;
+      margin: 12px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <div class="sheet collapsed" id="sheet">
+      <div class="sheet-handle">
+        <div class="handle-bar"></div>
+      </div>
+
+      <div class="sheet-content" id="sheetContent">
+        <!-- Dynamic content here -->
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" integrity="sha384-x0DvzHHXWbXlWQnFVeVHO6kjPNPqNGaV/xLWMfRC7T4rHiOBEMYvAB/aHnVBZDEH" crossorigin="anonymous"></script>
+  <script src="lib/constants.js"></script>
+  <script src="lib/utils.js"></script>
+  <script src="lib/api.js"></script>
+  <script src="lib/auth.js"></script>
+  <script>
+    // Segment Sheet Logic
+    const userId = window.supabaseClient.auth.user()?.id;
+    if (!userId) {
+      window.location.href = '/section-2-auth.html';
+    }
+
+    // Get segment ID from query param
+    const urlParams = new URLSearchParams(window.location.search);
+    const segmentId = urlParams.get('segment_id');
+    if (!segmentId) {
+      window.location.href = '/section-4-home-map.html';
+    }
+
+    let segment, board = [], currentLevel = null;
+    const sheet = document.getElementById('sheet');
+    const sheetContent = document.getElementById('sheetContent');
+
+    // Toggle expanded/collapsed
+    let isExpanded = false;
+    sheet.addEventListener('click', () => {
+      isExpanded = !isExpanded;
+      sheet.classList.toggle('expanded');
+      sheet.classList.toggle('collapsed');
+    });
+
+    // Load segment and board
+    async function loadSegment() {
+      // Get segment from database
+      const { data: segments, error: segError } = await window.AppAPI.getSegmentsInBounds({
+        minLat: -90,
+        minLng: -180,
+        maxLat: 90,
+        maxLng: 180,
+        limit: 1
+      });
+
+      // In a real implementation, you'd query segments table by ID
+      // For now, we'll load it when rendering
+
+      // Get board for today
+      const { data: boardData, error: boardError } = await window.AppAPI.getSegmentBoardToday(segmentId, currentLevel);
+      if (!boardError && boardData) {
+        board = boardData;
+      }
+
+      renderContent();
+    }
+
+    function renderContent() {
+      const today = new Date().toISOString().split('T')[0];
+      const isEmpty = board.length === 0;
+
+      let html = `
+        <div class="seg-name">Test Segment</div>
+        <div class="seg-location">Main Street</div>
+
+        <div class="facts">
+          <div class="fact">
+            <div class="fact-label">Distance</div>
+            <div class="fact-value">1.2 km</div>
+          </div>
+          <div class="fact">
+            <div class="fact-label">Climb</div>
+            <div class="fact-value">45 m</div>
+          </div>
+          <div class="fact">
+            <div class="fact-label">Surface</div>
+            <div class="fact-value">Tarmac</div>
+          </div>
+        </div>
+
+        <div class="elevation">
+          Elevation profile
+        </div>
+
+        <div class="target-time">
+          <div class="label">Your level target</div>
+          <div class="time">6:45</div>
+        </div>
+
+        <div class="level-filter">
+          <button class="level-btn" data-level="1" aria-pressed="false">Level 1</button>
+          <button class="level-btn" data-level="2" aria-pressed="false">Level 2</button>
+          <button class="level-btn" data-level="3" aria-pressed="false">Level 3</button>
+        </div>
+
+        <div class="board">
+          <div class="board-title">Today's Board</div>
+      `;
+
+      if (isEmpty) {
+        html += `<div class="empty-state">Nobody has run this today. Be first.</div>`;
+      } else {
+        board.forEach((run, idx) => {
+          const isYou = run.user_id === userId;
+          html += `
+            <div class="board-row ${isYou ? 'me' : ''}">
+              <div class="rank">${idx + 1}</div>
+              <div class="avatar">${window.AppUtils.getInitials(run.profiles?.display_name || 'Runner')}</div>
+              <div class="runner-name">${run.profiles?.display_name || 'Runner'}</div>
+              <div class="runner-time">${window.AppUtils.formatTime(run.seconds)}</div>
+            </div>
+          `;
+        });
+      }
+
+      html += `
+        </div>
+
+        <button class="btn" id="runBtn">Run this</button>
+      `;
+
+      sheetContent.innerHTML = html;
+
+      // Event listeners
+      document.getElementById('runBtn').addEventListener('click', () => {
+        window.location.href = '/section-6-recording.html?segment_id=' + segmentId;
+      });
+
+      document.querySelectorAll('.level-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          document.querySelectorAll('.level-btn').forEach(b => b.setAttribute('aria-pressed', 'false'));
+          btn.setAttribute('aria-pressed', 'true');
+          currentLevel = parseInt(btn.dataset.level);
+
+          const { data: boardData } = await window.AppAPI.getSegmentBoardToday(segmentId, currentLevel);
+          if (boardData) {
+            board = boardData;
+            renderContent();
+          }
+        });
+      });
+    }
+
+    loadSegment();
+  </script>
+</body>
+</html>

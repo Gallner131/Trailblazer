@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Trailblazer — Choose Your Area</title>
+  <meta name="theme-color" content="#FF4B12">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.css" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F3F4F6;
+      --card: #FFF;
+      --ink: #0E1116;
+      --muted: #6E7681;
+      --faint: #9AA1AC;
+      --line: #E7E9ED;
+      --accent: #FF4B12;
+      --sh: 0 1px 2px rgba(14,17,22,.05), 0 10px 28px -18px rgba(14,17,22,.35);
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
+      margin: 0;
+      height: 100%;
+    }
+    body {
+      background: var(--bg);
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .phone {
+      width: 100%;
+      max-width: 412px;
+      height: min(880px, calc(100vh - 48px));
+      background: var(--bg);
+      border-radius: 34px;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 40px 80px -40px rgba(14,17,22,.5), 0 0 0 1px rgba(14,17,22,.08);
+    }
+    @media (max-width: 520px) {
+      body {
+        padding: 0;
+        align-items: stretch;
+      }
+      .phone {
+        max-width: none;
+        height: 100vh;
+        height: 100dvh;
+        border-radius: 0;
+        box-shadow: none;
+      }
+    }
+    .topbar {
+      padding: 16px 20px;
+      background: var(--card);
+      border-bottom: 1px solid var(--line);
+      flex: none;
+    }
+    .topbar h2 {
+      margin: 0 0 2px;
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 18px;
+    }
+    .topbar p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    #map {
+      flex: 1;
+      position: relative;
+    }
+    .mapbox-canvas-container.mapboxgl-canvas-container {
+      height: 100%;
+    }
+    .pin {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -100%);
+      width: 32px;
+      height: 40px;
+      background: var(--accent);
+      border-radius: 16px 16px 16px 0;
+      box-shadow: 0 4px 12px rgba(14,17,22,.3);
+      display: grid;
+      place-items: center;
+      cursor: grab;
+      z-index: 10;
+    }
+    .pin.dragging {
+      cursor: grabbing;
+    }
+    .pin svg {
+      width: 18px;
+      height: 18px;
+    }
+    .panel {
+      background: var(--card);
+      border-top: 1px solid var(--line);
+      padding: 16px;
+      flex: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .search-box {
+      position: relative;
+    }
+    .search-box input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--ink);
+    }
+    .search-box input::placeholder {
+      color: var(--faint);
+    }
+    .search-results {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      margin-top: 4px;
+      z-index: 20;
+      max-height: 150px;
+      overflow-y: auto;
+      box-shadow: var(--sh);
+    }
+    .search-results button {
+      width: 100%;
+      border: 0;
+      background: none;
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 13px;
+      color: var(--ink);
+      transition: background 0.1s;
+    }
+    .search-results button:hover {
+      background: var(--bg);
+    }
+    .search-results button:last-child {
+      border-bottom: 0;
+    }
+    .location-label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .btn {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #fff;
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 16px;
+      padding: 14px;
+      cursor: pointer;
+      box-shadow: 0 6px 18px -8px rgba(255,75,18,.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn:active {
+      transform: translateY(1px);
+    }
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .error-box {
+      background: #FFF1EC;
+      border: 1px solid #FFD9CB;
+      color: #8C2C0E;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .status {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <div class="topbar">
+      <h2>Choose Your Area</h2>
+      <p>Tap and drag the pin to set your running location</p>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="pin" id="pin">
+      <svg viewBox="0 0 24 24" fill="#fff">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm0-12c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z"/>
+      </svg>
+    </div>
+
+    <div class="panel">
+      <div class="search-box">
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="Search for a place…"
+          autocomplete="off"
+        />
+        <div id="searchResults" class="search-results" style="display: none;"></div>
+      </div>
+
+      <div id="locationLabel" class="location-label">
+        <span id="labelText">Finding your location…</span>
+      </div>
+
+      <div id="errorBox" class="error-box" style="display: none;"></div>
+
+      <button id="saveBtn" class="btn">This is my area</button>
+
+      <div id="status" class="status" style="display: none;"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js"></script>
+  <script src="lib/constants.js"></script>
+  <script src="lib/utils.js"></script>
+  <script src="lib/api.js"></script>
+  <script src="lib/harvest.js"></script>
+  <script src="lib/auth.js"></script>
+  <script>
+    // Area Setup Logic
+    mapboxgl.accessToken = window.AppConstants.MAPBOX_TOKEN;
+
+    let currentLat, currentLng, currentLabel;
+    let map, isDragging = false;
+    const userId = window.supabaseClient.auth.user()?.id;
+
+    if (!userId) {
+      window.location.href = '/section-2-auth.html';
+    }
+
+    // Initialize map
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/outdoors-v12',
+      zoom: 12,
+      pitch: 0,
+      bearing: 0
+    });
+
+    // Default to London (user's will override with geolocation)
+    map.setCenter([-0.1278, 51.5074]);
+
+    // Geolocation
+    async function getLocation() {
+      return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Location detection timed out'));
+        }, window.AppConstants.TIMEOUTS.location);
+
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            clearTimeout(timeoutId);
+            resolve(pos);
+          },
+          err => {
+            clearTimeout(timeoutId);
+            reject(err);
+          }
+        );
+      });
+    }
+
+    // On load: try geolocation, fall back to defaults
+    async function initArea() {
+      try {
+        const pos = await getLocation();
+        currentLat = pos.coords.latitude;
+        currentLng = pos.coords.longitude;
+        map.setCenter([currentLng, currentLat]);
+
+        // Reverse geocode to get place name
+        const { data, error } = await window.AppAPI.reverseGeocode(currentLat, currentLng);
+        if (!error && data) {
+          currentLabel = data.place_name;
+          document.getElementById('labelText').textContent = currentLabel;
+        } else {
+          currentLabel = 'Your location';
+          document.getElementById('labelText').textContent = currentLabel;
+        }
+      } catch (err) {
+        // Permission denied or timeout; fall back to London
+        currentLat = 51.5074;
+        currentLng = -0.1278;
+        currentLabel = 'London';
+        document.getElementById('labelText').textContent = currentLabel;
+        showError('Location permission denied. Set your area manually.');
+      }
+    }
+
+    // Pin drag
+    const pin = document.getElementById('pin');
+
+    pin.addEventListener('mousedown', () => {
+      isDragging = true;
+      pin.classList.add('dragging');
+    });
+
+    document.addEventListener('mousemove', async (e) => {
+      if (!isDragging) return;
+      const rect = document.getElementById('map').getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const coords = map.unproject([x, y]);
+      currentLat = coords.lat;
+      currentLng = coords.lng;
+
+      // Reverse geocode
+      const { data, error } = await window.AppAPI.reverseGeocode(currentLat, currentLng);
+      if (!error && data) {
+        currentLabel = data.place_name;
+      } else {
+        currentLabel = currentLat.toFixed(3) + ', ' + currentLng.toFixed(3);
+      }
+      document.getElementById('labelText').textContent = currentLabel;
+    });
+
+    document.addEventListener('mouseup', () => {
+      isDragging = false;
+      pin.classList.remove('dragging');
+    });
+
+    // Search
+    const searchInput = document.getElementById('searchInput');
+    const searchResults = document.getElementById('searchResults');
+    let searchTimeout;
+
+    searchInput.addEventListener('input', async (e) => {
+      const query = e.target.value.trim();
+      if (!query) {
+        searchResults.style.display = 'none';
+        return;
+      }
+
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(async () => {
+        const { data, error } = await window.AppAPI.geocodePlace(query);
+        if (error) {
+          showError('Search failed: ' + error.message);
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          searchResults.innerHTML = '<button style="cursor: not-allowed; opacity: 0.5;">No results</button>';
+          searchResults.style.display = 'block';
+          return;
+        }
+
+        searchResults.innerHTML = data.map((feature, i) => {
+          const center = feature.center;
+          return `<button data-lat="${center[1]}" data-lng="${center[0]}" data-name="${feature.place_name}">
+            ${feature.place_name}
+          </button>`;
+        }).join('');
+
+        searchResults.style.display = 'block';
+
+        searchResults.querySelectorAll('button').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            currentLat = parseFloat(btn.dataset.lat);
+            currentLng = parseFloat(btn.dataset.lng);
+            currentLabel = btn.dataset.name;
+            searchInput.value = '';
+            searchResults.style.display = 'none';
+            document.getElementById('labelText').textContent = currentLabel;
+            map.setCenter([currentLng, currentLat]);
+          });
+        });
+      }, 300);
+    });
+
+    // Save
+    const saveBtn = document.getElementById('saveBtn');
+    saveBtn.addEventListener('click', async () => {
+      saveBtn.disabled = true;
+      showStatus('Saving your area…');
+
+      // Update profile
+      const { error: updateErr } = await window.AppAPI.updateProfile(userId, {
+        home_lat: currentLat,
+        home_lng: currentLng,
+        home_label: currentLabel
+      });
+
+      if (updateErr) {
+        showError(updateErr.message);
+        saveBtn.disabled = false;
+        return;
+      }
+
+      // Harvest segments around this location
+      showStatus('Finding nearby segments…');
+      const { error: harvestErr } = await window.AppHarvest.harvestArea(currentLat, currentLng, 2);
+
+      if (harvestErr) {
+        showError('Harvest failed: ' + harvestErr.message);
+        saveBtn.disabled = false;
+        return;
+      }
+
+      // Redirect to map
+      window.location.href = '/section-4-home-map.html';
+    });
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = 'block';
+    }
+
+    function showStatus(msg) {
+      const status = document.getElementById('status');
+      status.textContent = msg;
+      status.style.display = 'block';
+    }
+
+    initArea();
+  </script>
+</body>
+</html>

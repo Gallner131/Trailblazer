@@ -433,15 +433,27 @@
       saveBtn.disabled = true;
       showStatus('Saving your area…');
 
+      // Verify session is still valid before saving
+      const { data: { session } } = await window.supabaseClient.auth.getSession();
+      if (!session || !session.user) {
+        console.error('Session lost during area setup');
+        showError('Your session expired. Please sign in again.');
+        window.location.href = '/section-2-auth.html';
+        return;
+      }
+
       // Update profile FIRST (this must succeed)
       console.log('Saving area for user:', userId);
+      console.log('Session user:', session.user.id, 'Profile user:', userId, 'Match:', session.user.id === userId);
       console.log('Update data:', { home_lat: currentLat, home_lng: currentLng, home_label: currentLabel });
 
-      const { error: updateErr } = await window.AppAPI.updateProfile(userId, {
+      const { error: updateErr, data: updateData } = await window.AppAPI.updateProfile(userId, {
         home_lat: currentLat,
         home_lng: currentLng,
         home_label: currentLabel
       });
+
+      console.log('Update result:', { data: updateData, error: updateErr });
 
       if (updateErr) {
         console.error('Profile update failed:', {

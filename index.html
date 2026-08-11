@@ -334,6 +334,7 @@ async function initDb(){
 }
 
 async function signInWithEmail(){
+  if(!sb){alert('Database not connected. Please refresh the page.');return}
   showSheet('Sign in with email',
     `<p style="color:var(--muted);font-size:13px">We'll send you a magic link to sign in.</p>
      <input type="email" id="emailInput" placeholder="your@email.com" autocomplete="email">
@@ -357,6 +358,7 @@ async function signInWithEmail(){
 }
 
 async function signInWithGoogle(){
+  if(!sb){alert('Database not connected. Please refresh the page.');return}
   try{
     const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}});
     if(error)throw error;
@@ -364,6 +366,7 @@ async function signInWithGoogle(){
 }
 
 async function signInWithApple(){
+  if(!sb){alert('Database not connected. Please refresh the page.');return}
   try{
     const {error}=await sb.auth.signInWithOAuth({provider:'apple',options:{redirectTo:window.location.origin}});
     if(error)throw error;
@@ -1018,6 +1021,13 @@ let RADIUS=700;
 async function start(){
   loading("Checking authentication…");
   await initDb();
+  if(!sb){
+    fail("Connection failed",
+      `<b>Error:</b> ${esc(sbError||"Could not connect to the database")}<br><br>
+       This might be a network issue, or the Supabase project might be misconfigured.`,
+      "Retry",start);
+    return;
+  }
   if(!currentUser){showSignIn();return}
 
   await loadMe();

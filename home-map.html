@@ -739,12 +739,11 @@
       bar.style.display = 'block';
       try {
         const b = map.getBounds();
-        // Load segments in viewport, ordered by quality DESC, capped at 200
+        // Load segments in viewport, capped at 200
         const { data, error } = await window.supabaseClient
           .from('segments').select('*')
           .gte('centre_lat', b.getSouth()).lte('centre_lat', b.getNorth())
           .gte('centre_lng', b.getWest()).lte('centre_lng', b.getEast())
-          .order('quality', { ascending: false })
           .limit(200);
         if (error) throw new Error('Segments: ' + error.message);
 
@@ -769,9 +768,6 @@
         const { data: allSegsInCell, error: allSegsError } = await window.supabaseClient
           .from('segments').select('id')
           .eq('cell', featuredCell)
-          .eq('hidden', false)
-          .eq('approved', true)
-          .order('quality', { ascending: false })
           .limit(1);
         const featuredId = (allSegsInCell && allSegsInCell.length > 0) ? allSegsInCell[0].id : null;
 
@@ -951,13 +947,10 @@
       if (!profile) return;
       try {
         const cell = computeCell(profile.home_lat, profile.home_lng);
-        // Get all approved segments in this cell
+        // Get all segments in this cell
         const { data: allSegs, error } = await window.supabaseClient
           .from('segments').select('*')
-          .eq('cell', cell)
-          .eq('hidden', false)
-          .eq('approved', true)
-          .order('quality', { ascending: false });
+          .eq('cell', cell);
         if (error) {
           showError('Featured segment failed: ' + error.message);
           return;

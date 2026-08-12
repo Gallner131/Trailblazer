@@ -420,6 +420,8 @@
     async function loadSegmentsInView() {
       if (!map || loading) return;
       loading = true;
+      const bar = document.getElementById('loadingBar');
+      bar.style.display = 'block';
       try {
         const b = map.getBounds();
         const { data, error } = await window.supabaseClient
@@ -427,11 +429,12 @@
           .gte('centre_lat', b.getSouth()).lte('centre_lat', b.getNorth())
           .gte('centre_lng', b.getWest()).lte('centre_lng', b.getEast())
           .limit(200);
-        if (error) throw new Error(error.message);
+        if (error) throw new Error('Segments: ' + error.message);
 
         const today = new Date().toISOString().slice(0, 10);
-        const { data: runs } = await window.supabaseClient
+        const { data: runs, error: runsError } = await window.supabaseClient
           .from('runs').select('segment_id').eq('run_date', today);
+        if (runsError) throw new Error('Today\'s runs: ' + runsError.message);
         const counts = {};
         (runs || []).forEach(r => counts[r.segment_id] = (counts[r.segment_id] || 0) + 1);
 
@@ -456,6 +459,7 @@
         showError('Could not load segments: ' + e.message);
       } finally {
         loading = false;
+        setTimeout(() => { bar.style.display = 'none'; }, 300);
       }
     }
 
@@ -509,14 +513,27 @@
         const { data: allSegs, error } = await window.supabaseClient
           .from('segments').select('*')
           .eq('cell', cell)
-          .eq('approved', true);
-        if (error || !allSegs || allSegs.length === 0) return;
+          .eq('hidden', false)
+          .eq('approved', true)
+          .order('quality', { ascending: false });
+        if (error) {
+          showError('Featured segment failed: ' + error.message);
+          return;
+        }
+        if (!allSegs || allSegs.length === 0) {
+          document.getElementById('featuredContainer').innerHTML = '<div style="padding:12px;color:#6E7681;">No segments in your area. Search to find some.</div>';
+          return;
+        }
 
         // Get today's run counts to rank by quality (runners today)
         const today = new Date().toISOString().slice(0, 10);
-        const { data: todaysRuns } = await window.supabaseClient
+        const { data: todaysRuns, error: runsErr } = await window.supabaseClient
           .from('runs').select('segment_id')
           .eq('run_date', today);
+        if (runsErr) {
+          showError('Today\'s runs: ' + runsErr.message);
+          return;
+        }
         const runCounts = {};
         (todaysRuns || []).forEach(r => {
           runCounts[r.segment_id] = (runCounts[r.segment_id] || 0) + 1;
@@ -529,11 +546,12 @@
 
         // Get user's best time on this segment (all time, not just today)
         const { data: { user } } = await window.supabaseClient.auth.getUser();
-        const { data: userRuns } = await window.supabaseClient
+        const { data: userRuns, error: userRunsErr } = await window.supabaseClient
           .from('runs').select('seconds')
           .eq('segment_id', featured.id)
           .eq('user_id', user.id)
           .order('seconds', { ascending: true });
+        if (userRunsErr) console.error('User runs error:', userRunsErr);
         const userBest = (userRuns && userRuns.length > 0) ? userRuns[0].seconds : null;
 
         // Get runners today for this segment
@@ -609,7 +627,7 @@
           location.href = '/recording.html?segment_id=' + featured.id;
         });
       } catch (e) {
-        console.error('Featured segment load failed:', e);
+        showError('Featured segment error: ' + (e.message || e));
       }
     }
 

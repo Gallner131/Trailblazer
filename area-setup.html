@@ -374,12 +374,16 @@
             .eq('id', userId);
           if (error) throw error;
 
-          window.AppHarvest.harvestArea(currentLat, currentLng, 1500, msg => {
-            document.getElementById('status').textContent = msg;
-            document.getElementById('status').style.display = 'block';
-          }).catch(err => {
+          document.getElementById('status').textContent = 'Finding running routes…';
+          document.getElementById('status').style.display = 'block';
+
+          try {
+            await window.AppHarvest.harvestArea(currentLat, currentLng, 1500, msg => {
+              document.getElementById('status').textContent = msg;
+            });
+          } catch (err) {
             console.error('Harvest failed:', err);
-          });
+          }
 
           location.href = '/home-map.html';
         } catch (e) {

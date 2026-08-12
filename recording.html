@@ -66,11 +66,14 @@
       const { data: { user } } = await window.supabaseClient.auth.getUser();
       if (!user) { location.href = '/section-2-auth.html'; return; }
 
+      if (!segmentId) { showError('No segment selected. Go back to map and tap Run this.'); return; }
+
       const { data: p } = await window.supabaseClient.from('profiles').select('*').eq('id', user.id).single();
       profile = p;
 
       const { data: s, error } = await window.supabaseClient.from('segments').select('*').eq('id', segmentId).single();
-      if (error || !s) { showError('Segment not found'); return; }
+      if (error) { showError('Segment error: ' + error.message); return; }
+      if (!s) { showError('Segment not found (id: ' + segmentId + ')'); return; }
       seg = s;
 
       document.getElementById('segmentName').textContent = seg.name;

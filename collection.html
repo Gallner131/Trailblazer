@@ -208,6 +208,21 @@
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+    /* Map markers */
+    .seg-pin {
+      position: relative;
+      width: 22px;
+      height: 22px;
+      cursor: pointer;
+    }
+    .seg-pin .dot {
+      display: block;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2.5px solid #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,.35);
+    }
     /* Tabs */
     .tabs {
       position: fixed;
@@ -339,11 +354,16 @@
       }
     }
 
-    function getRarityBadge(claimCount) {
-      // Rarity based on claim count (lower is rarer)
-      if (claimCount > 20) return { label: 'Common', class: 'rarity-common', icon: '●' };
-      if (claimCount > 5) return { label: 'Uncommon', class: 'rarity-uncommon', icon: '◆' };
-      if (claimCount > 1) return { label: 'Rare', class: 'rarity-rare', icon: '★' };
+    function getRarityBadge(segmentId) {
+      // Find the segment to get its quality score
+      const segment = data.allSegments.find(s => s.id === segmentId);
+      if (!segment) return { label: 'Unknown', class: 'rarity-common', icon: '—' };
+
+      // Rarity based on quality score
+      const quality = segment.quality_score || 50;
+      if (quality >= 80) return { label: 'Common', class: 'rarity-common', icon: '●' };
+      if (quality >= 60) return { label: 'Uncommon', class: 'rarity-uncommon', icon: '◆' };
+      if (quality >= 40) return { label: 'Rare', class: 'rarity-rare', icon: '★' };
       return { label: 'Legendary', class: 'rarity-legendary', icon: '✦' };
     }
 
@@ -423,9 +443,7 @@
       let html = '<div class="grid">';
 
       Object.values(data.claimedSegments).forEach(claimed => {
-        const claimCount = data.allSegments.filter(s => s.id === claimed.segment_id).length > 0 ?
-          data.userRuns.filter(r => r.segment_id === claimed.segment_id).length : 0;
-        const rarity = getRarityBadge(claimCount);
+        const rarity = getRarityBadge(claimed.segment_id);
 
         const dateStr = new Date(claimed.run_date).toLocaleDateString('en-US', {
           month: 'short',

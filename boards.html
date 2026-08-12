@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Boards</title>
+  <meta name="theme-color" content="#FF4B12">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #F3F4F6; --card: #FFF; --ink: #0E1116; --muted: #6E7681; --faint: #9AA1AC; --line: #E7E9ED; --accent: #FF4B12; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body { padding: 16px 16px 72px; background: var(--bg); font-family: Inter, sans-serif; }
+    .tabs-top { display: flex; gap: 8px; margin-bottom: 16px; }
+    .tab-btn { flex: 1; padding: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .board { display: none; }
+    .board.active { display: block; }
+    .row { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--card); border-radius: 8px; margin-bottom: 8px; }
+    .rank { font-weight: 700; color: var(--muted); min-width: 24px; }
+    .name { flex: 1; }
+    .metric { font-weight: 700; }
+    .empty { text-align: center; padding: 48px 16px; color: var(--muted); }
+    .tabs-bottom { position: fixed; bottom: 0; left: 0; right: 0; height: 56px; display: flex; background: var(--card); border-top: 1px solid var(--line); }
+    .tab { flex: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: 600; font-size: 12px; }
+    .tab.active { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="tabs-top">
+    <button class="tab-btn active" onclick="showBoard('today')">Today</button>
+    <button class="tab-btn" onclick="showBoard('collectors')">Collectors</button>
+    <button class="tab-btn" onclick="showBoard('streaks')">Streaks</button>
+  </div>
+
+  <div id="today" class="board active"></div>
+  <div id="collectors" class="board"></div>
+  <div id="streaks" class="board"></div>
+
+  <div class="tabs-bottom">
+    <div class="tab active" onclick="location.href='/home-map.html'">Map</div>
+    <div class="tab" onclick="location.href='/collection.html'">Collection</div>
+    <div class="tab" onclick="location.href='/boards.html'">Boards</div>
+    <div class="tab" onclick="location.href='/profile.html'">Profile</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="lib/constants.js"></script>
+  <script src="lib/utils.js"></script>
+  <script src="lib/auth.js"></script>
+  <script>
+    function showBoard(b) {
+      ['today','collectors','streaks'].forEach(x => {
+        document.getElementById(x).classList.remove('active');
+        document.querySelector(`button[onclick="showBoard('${x}')"]`).classList.remove('active');
+      });
+      document.getElementById(b).classList.add('active');
+      document.querySelector(`button[onclick="showBoard('${b}')"]`).classList.add('active');
+    }
+
+    (async () => {
+      const { data: { user } } = await window.supabaseClient.auth.getUser();
+      if (!user) { location.href = '/section-2-auth.html'; return; }
+
+      const { data: runs } = await window.supabaseClient.from('runs').select('*').eq('user_id', user.id);
+      const { data: all } = await window.supabaseClient.from('runs').select('*').order('created_at', { ascending: false });
+
+      let html = '<div class="empty">No runs yet today</div>';
+      if (all && all.length > 0) {
+        html = '';
+        all.slice(0, 100).forEach((r, i) => {
+          html += '<div class="row"><div class="rank">' + (i+1) + '</div><div class="name">Runner</div><div class="metric">' + window.AppUtils.mmss(r.seconds) + '</div></div>';
+        });
+      }
+      document.getElementById('today').innerHTML = html;
+      document.getElementById('collectors').innerHTML = '<div class="empty">Collectors board coming soon</div>';
+      document.getElementById('streaks').innerHTML = '<div class="empty">Streaks board coming soon</div>';
+    })();
+  </script>
+</body>
+</html>

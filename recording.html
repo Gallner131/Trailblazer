@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Recording run</title>
+  <meta name="theme-color" content="#FF4B12">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #F3F4F6; --card: #FFF; --ink: #0E1116; --muted: #6E7681; --faint: #9AA1AC; --line: #E7E9ED; --accent: #FF4B12; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    .phone { width: 100%; height: 100%; display: flex; flex-direction: column; background: var(--bg); }
+    .header { background: var(--card); padding: 16px; border-bottom: 1px solid var(--line); }
+    .header h2 { margin: 0; font-family: "Inter Tight"; font-size: 16px; font-weight: 700; }
+    .header p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+    .content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+    .metric { font-size: 48px; font-weight: 700; font-family: "Inter Tight"; color: var(--ink); margin: 16px 0; }
+    .status { font-size: 14px; color: var(--muted); margin: 12px 0; }
+    .bottom { background: var(--card); padding: 16px; border-top: 1px solid var(--line); display: flex; gap: 12px; }
+    button { border: 0; padding: 12px 16px; border-radius: 8px; font-family: inherit; cursor: pointer; font-weight: 600; }
+    .btn-back { background: var(--line); color: var(--ink); flex: 1; }
+    .btn-action { background: var(--accent); color: #fff; flex: 2; font-size: 16px; }
+    .btn-action:disabled { opacity: 0.6; cursor: not-allowed; }
+    .error { color: #8C2C0E; background: #FFF1EC; padding: 12px; border-radius: 8px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <div class="header">
+      <h2 id="segmentName">Loading...</h2>
+      <p id="headerStatus">Finding you</p>
+    </div>
+    <div class="content">
+      <div id="accuracy">Signal: —</div>
+      <div class="metric" id="metric">—</div>
+      <div class="status" id="status">—</div>
+      <div id="errorBox" class="error" style="display:none;"></div>
+    </div>
+    <div class="bottom">
+      <button class="btn-back" id="backBtn">Back</button>
+      <button class="btn-action" id="actionBtn">Start</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="lib/constants.js"></script>
+  <script src="lib/utils.js"></script>
+  <script src="lib/geo.js"></script>
+  <script src="lib/auth.js"></script>
+  <script src="lib/api.js"></script>
+  <script>
+    const MAX_ACC = 35, ARM_DIST = 30, GATE_HALF = 30, CORRIDOR = 40;
+    const params = new URLSearchParams(location.search);
+    const segmentId = params.get('segment_id');
+
+    let seg = null, profile = null, phase = 'acquiring', trace = [], goodFixes = 0;
+    let startGate = null, finishGate = null, t0 = null, elapsed = null, reversed = false, wakeLock = null;
+
+    document.getElementById('backBtn').addEventListener('click', () => history.back());
+    document.getElementById('actionBtn').addEventListener('click', onAction);
+
+    (async () => {
+      const { data: { user } } = await window.supabaseClient.auth.getUser();
+      if (!user) { location.href = '/section-2-auth.html'; return; }
+
+      const { data: p } = await window.supabaseClient.from('profiles').select('*').eq('id', user.id).single();
+      profile = p;
+
+      const { data: s, error } = await window.supabaseClient.from('segments').select('*').eq('id', segmentId).single();
+      if (error || !s) { showError('Segment not found'); return; }
+      seg = s;
+
+      document.getElementById('segmentName').textContent = seg.name;
+      const coords = seg.geom;
+      const startBrg = window.AppGeo.bearing(coords[0], coords[1]);
+      const finishBrg = window.AppGeo.bearing(coords[coords.length - 2], coords[coords.length - 1]);
+      startGate = window.AppGeo.gateAt(coords[0], startBrg, GATE_HALF);
+      finishGate = window.AppGeo.gateAt(coords[coords.length - 1], finishBrg, GATE_HALF);
+
+      startWatching();
+    })();
+
+    function setPhase(newPhase, msg) {
+      phase = newPhase;
+      const btn = document.getElementById('actionBtn');
+      if (newPhase === 'acquiring') { document.getElementById('headerStatus').textContent = 'Finding you'; btn.textContent = 'Wait'; btn.disabled = true; }
+      else if (newPhase === 'weak') { document.getElementById('headerStatus').textContent = msg || 'GPS weak'; btn.textContent = 'Wait'; btn.disabled = true; }
+      else if (newPhase === 'toStart') { document.getElementById('headerStatus').textContent = 'Ready to run'; btn.textContent = 'Start'; btn.disabled = false; }
+      else if (newPhase === 'armed') { document.getElementById('headerStatus').textContent = 'Cross the line'; btn.textContent = 'Start'; btn.disabled = true; }
+      else if (newPhase === 'timing') { document.getElementById('headerStatus').textContent = 'Running'; btn.textContent = 'Finish'; btn.disabled = true; }
+      else if (newPhase === 'complete') { document.getElementById('headerStatus').textContent = 'Finished'; btn.textContent = 'Post'; btn.disabled = false; }
+      else if (newPhase === 'posting') { btn.textContent = 'Posting...'; btn.disabled = true; }
+      else if (newPhase === 'failed') { btn.textContent = 'Try again'; btn.disabled = false; }
+    }
+
+    function startWatching() {
+      if (!navigator.geolocation) { setPhase('weak', 'No GPS'); return; }
+      navigator.geolocation.watchPosition(onFix, e => setPhase('weak', 'GPS error: ' + e.message), { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
+    }
+
+    function onFix(pos) {
+      const p = [pos.coords.latitude, pos.coords.longitude];
+      const acc = pos.coords.accuracy || 99;
+      const now = Date.now();
+
+      document.getElementById('accuracy').textContent = '±' + Math.round(acc) + ' m';
+
+      if (acc > MAX_ACC) { setPhase(phase === 'timing' ? 'timing' : 'weak', 'Weak ±' + Math.round(acc) + ' m'); return; }
+
+      goodFixes++;
+      if ((phase === 'acquiring' || phase === 'weak') && goodFixes >= 3) setPhase('toStart');
+
+      const prev = trace[trace.length - 1];
+      trace.push({ p, t: now, acc });
+      saveTraceLocally();
+
+      const dStart = window.AppUtils.haversine(p, seg.geom[0]);
+      const dFinish = window.AppUtils.haversine(p, seg.geom[seg.geom.length - 1]);
+
+      if (phase === 'toStart' && (dStart < ARM_DIST || dFinish < ARM_DIST)) setPhase('armed');
+
+      if (prev && phase === 'armed') {
+        const hitStart = dStart < ARM_DIST * 2 ? window.AppGeo.intersect(prev.p, p, startGate[0], startGate[1]) : null;
+        const hitFinish = dFinish < ARM_DIST * 2 ? window.AppGeo.intersect(prev.p, p, finishGate[0], finishGate[1]) : null;
+        if (hitStart) { reversed = false; t0 = window.AppGeo.crossingTime(prev, {t: now}, hitStart.t); setPhase('timing'); navigator.vibrate && navigator.vibrate(60); }
+        else if (hitFinish) { reversed = true; t0 = window.AppGeo.crossingTime(prev, {t: now}, hitFinish.t); setPhase('timing'); navigator.vibrate && navigator.vibrate(60); }
+      }
+      else if (prev && phase === 'timing') {
+        const endGate = reversed ? startGate : finishGate;
+        const dEnd = reversed ? dStart : dFinish;
+        const hit = dEnd < ARM_DIST * 2 ? window.AppGeo.intersect(prev.p, p, endGate[0], endGate[1]) : null;
+        if (hit) {
+          elapsed = (window.AppGeo.crossingTime(prev, {t: now}, hit.t) - t0) / 1000;
+          setPhase('complete');
+          navigator.vibrate && navigator.vibrate([40, 60, 40]);
+        }
+      }
+
+      paint();
+    }
+
+    function paint() {
+      const m = document.getElementById('metric');
+      const s = document.getElementById('status');
+      if (phase === 'timing' && t0) {
+        const e = (Date.now() - t0) / 1000;
+        m.textContent = window.AppUtils.mmss(e);
+        const dist = trace.filter(f => f.t >= t0).reduce((sum, f, i, arr) => i > 0 ? sum + window.AppUtils.haversine(arr[i-1].p, f.p) : 0, 0);
+        s.textContent = (dist / 1000).toFixed(2) + ' km';
+      } else if (phase === 'complete') {
+        m.textContent = window.AppUtils.mmss(elapsed);
+        const ranked = isRanked();
+        s.textContent = ranked ? 'Ranked' : 'Off-course';
+      } else if (phase === 'toStart') {
+        m.textContent = '✓';
+        s.textContent = 'Ready';
+      }
+    }
+
+    function isRanked() {
+      const seen = trace.filter(f => f.t >= t0);
+      if (seen.length < 5) return false;
+      let off = 0;
+      seen.forEach(f => {
+        let min = Infinity;
+        seg.geom.forEach(g => { const d = window.AppUtils.haversine(f.p, g); if (d < min) min = d; });
+        if (min > CORRIDOR) off++;
+      });
+      return (off / seen.length) < 0.25;
+    }
+
+    function saveTraceLocally() {
+      try { localStorage.setItem('run:' + segmentId, JSON.stringify({ trace, t0, elapsed, reversed, at: Date.now() })); } catch (e) {}
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && phase === 'timing') {
+        try { navigator.wakeLock && navigator.wakeLock.request('screen').then(l => wakeLock = l); } catch (e) {}
+      }
+    });
+
+    async function onAction() {
+      if (phase === 'complete') postRun();
+      else if (phase === 'failed') postRun();
+    }
+
+    async function postRun() {
+      setPhase('posting');
+      try {
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        const { error } = await window.supabaseClient.from('runs').upsert({
+          segment_id: Number(segmentId),
+          user_id: user.id,
+          run_date: new Date().toISOString().slice(0, 10),
+          seconds: Math.round(elapsed * 10) / 10,
+          level: profile.level,
+          ranked: isRanked()
+        }, { onConflict: 'segment_id,user_id,run_date' });
+
+        if (error) throw error;
+        localStorage.removeItem('run:' + segmentId);
+        location.href = '/result.html?segment_id=' + segmentId;
+      } catch (e) {
+        setPhase('failed', e.message);
+        showError('Post failed: ' + e.message);
+      }
+    }
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = 'block';
+    }
+
+    window.addEventListener('online', () => {
+      if (phase === 'failed') {
+        const saved = localStorage.getItem('run:' + segmentId);
+        if (saved) postRun();
+      }
+    });
+  </script>
+</body>
+</html>

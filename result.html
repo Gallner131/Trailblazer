@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Your time</title>
+  <meta name="theme-color" content="#FF4B12">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #F3F4F6; --card: #FFF; --ink: #0E1116; --muted: #6E7681; --faint: #9AA1AC; --line: #E7E9ED; --accent: #FF4B12; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body { padding: 24px 16px; background: var(--bg); font-family: Inter, sans-serif; }
+    .time { font-size: 56px; font-weight: 700; font-family: "Inter Tight"; color: var(--ink); text-align: center; margin: 24px 0; }
+    .rank { text-align: center; color: var(--muted); margin: 12px 0; }
+    .stats { background: var(--card); border-radius: 12px; padding: 16px; margin: 16px 0; }
+    .stat { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .stat:last-child { border: 0; }
+    .btn { width: 100%; background: var(--accent); color: #fff; border: 0; padding: 14px; border-radius: 12px; font-weight: 700; margin-top: 16px; cursor: pointer; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <div id="content">
+    <div class="time" id="time">—</div>
+    <div class="rank" id="rank">—</div>
+    <div class="stats" id="stats">Loading…</div>
+    <button class="btn" onclick="location.href='/home-map.html'">Back to map</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="lib/constants.js"></script>
+  <script src="lib/utils.js"></script>
+  <script src="lib/auth.js"></script>
+  <script>
+    const LEVELS = [
+      { n: 'New', pace: 390 },
+      { n: 'Steady', pace: 315 },
+      { n: 'Quick', pace: 255 },
+      { n: 'Elite', pace: 205 }
+    ];
+    const targetFor = (lvl, metres) => {
+      const km = metres / 1000;
+      return LEVELS[lvl].pace * km * (1 - 0.22 * Math.max(0, 1 - km));
+    };
+
+    const params = new URLSearchParams(location.search);
+    const segmentId = Number(params.get('segment_id'));
+    const today = new Date().toISOString().slice(0, 10);
+
+    (async () => {
+      const { data: { user } } = await window.supabaseClient.auth.getUser();
+      if (!user) { location.href = '/section-2-auth.html'; return; }
+
+      const { data: profile } = await window.supabaseClient.from('profiles').select('*').eq('id', user.id).single();
+      const { data: seg } = await window.supabaseClient.from('segments').select('*').eq('id', segmentId).single();
+      const { data: board } = await window.supabaseClient.from('runs').select('seconds,user_id').eq('segment_id', segmentId).eq('run_date', today).order('seconds', { ascending: true });
+      const { data: history } = await window.supabaseClient.from('runs').select('seconds,run_date').eq('segment_id', segmentId).eq('user_id', user.id).order('seconds', { ascending: true });
+
+      const mine = board.find(r => r.user_id === user.id);
+      const sameLevel = board.filter(r => r.level === profile.level);
+      const rank = sameLevel.findIndex(r => r.user_id === user.id) + 1;
+
+      const isNewBest = history[0].run_date === today;
+      const target = targetFor(profile.level, seg.length_m);
+      const delta = mine.seconds - target;
+
+      document.getElementById('time').textContent = window.AppUtils.mmss(mine.seconds);
+      document.getElementById('rank').textContent = rank + ' of ' + sameLevel.length + ' • ' + (delta > 0 ? '+' : '') + Math.round(delta) + 's vs target';
+
+      let html = '<div class="stat"><strong>Segment</strong><span>' + seg.name + '</span></div>';
+      html += '<div class="stat"><strong>Your time</strong><span>' + window.AppUtils.mmss(mine.seconds) + '</span></div>';
+      if (isNewBest) html += '<div class="stat"><strong>Status</strong><span style="color:var(--accent);">New best!</span></div>';
+      if (history.length > 1) html += '<div class="stat"><strong>Your best</strong><span>' + window.AppUtils.mmss(history[0].seconds) + '</span></div>';
+      document.getElementById('stats').innerHTML = html;
+    })();
+  </script>
+</body>
+</html>

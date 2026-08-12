@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Profile</title>
+  <meta name="theme-color" content="#FF4B12">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #F3F4F6; --card: #FFF; --ink: #0E1116; --muted: #6E7681; --faint: #9AA1AC; --line: #E7E9ED; --accent: #FF4B12; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body { padding: 16px 16px 72px; background: var(--bg); font-family: Inter, sans-serif; }
+    .header { background: var(--card); padding: 16px; border-radius: 12px; margin-bottom: 16px; text-align: center; }
+    .avatar { width: 64px; height: 64px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 24px; margin: 0 auto 12px; }
+    .header h2 { margin: 0; font-family: "Inter Tight"; }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .stat { background: var(--card); padding: 12px; border-radius: 8px; text-align: center; }
+    .stat-value { font-size: 18px; font-weight: 700; color: var(--accent); }
+    .stat-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .section { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .section h3 { margin: 0 0 12px; font-family: "Inter Tight"; }
+    .row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .row:last-child { border: 0; }
+    .select { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; }
+    .btn { width: 100%; padding: 12px; border: 0; border-radius: 8px; font-weight: 600; cursor: pointer; margin-bottom: 8px; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-secondary { background: var(--line); color: var(--ink); }
+    .btn-danger { background: #FFD9CB; color: #8C2C0E; }
+    .tabs-bottom { position: fixed; bottom: 0; left: 0; right: 0; height: 56px; display: flex; background: var(--card); border-top: 1px solid var(--line); }
+    .tab { flex: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: 600; font-size: 12px; }
+    .tab.active { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="avatar" id="avatar">G</div>
+    <h2 id="name">Loading...</h2>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat"><div class="stat-value" id="collected">0</div><div class="stat-label">Segments</div></div>
+    <div class="stat"><div class="stat-value" id="runs">0</div><div class="stat-label">Runs</div></div>
+    <div class="stat"><div class="stat-value" id="distance">0</div><div class="stat-label">km</div></div>
+    <div class="stat"><div class="stat-value" id="streak">0</div><div class="stat-label">Day streak</div></div>
+  </div>
+
+  <div class="section">
+    <h3>Level</h3>
+    <p>Current: <strong id="levelName">—</strong></p>
+    <select class="select" id="levelSelect">
+      <option value="0">New (150+ pace)</option>
+      <option value="1">Steady (120 pace)</option>
+      <option value="2">Quick (90 pace)</option>
+      <option value="3">Elite (60 pace)</option>
+    </select>
+    <button class="btn btn-primary" onclick="updateLevel()">Update Level</button>
+  </div>
+
+  <div class="section">
+    <h3>Settings</h3>
+    <div class="row">
+      <span>Home area</span>
+      <a href="/area-setup.html" style="color: var(--accent);">Change</a>
+    </div>
+    <div class="row">
+      <span>Notifications</span>
+      <input type="checkbox" checked>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>Recent runs</h3>
+    <div id="history"></div>
+  </div>
+
+  <button class="btn btn-secondary" onclick="signOut()">Sign out</button>
+  <button class="btn btn-danger" onclick="deleteAccountStep1()">Delete account</button>
+
+  <div class="tabs-bottom">
+    <div class="tab" onclick="location.href='/home-map.html'">Map</div>
+    <div class="tab" onclick="location.href='/collection.html'">Collection</div>
+    <div class="tab" onclick="location.href='/boards.html'">Boards</div>
+    <div class="tab active" onclick="location.href='/profile.html'">Profile</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="lib/constants.js"></script>
+  <script src="lib/utils.js"></script>
+  <script src="lib/auth.js"></script>
+  <script>
+    (async () => {
+      const { data: { user } } = await window.supabaseClient.auth.getUser();
+      if (!user) { location.href = '/section-2-auth.html'; return; }
+
+      const { data: profile } = await window.supabaseClient.from('profiles').select('*').eq('id', user.id).single();
+      const { data: runs } = await window.supabaseClient.from('runs').select('*').eq('user_id', user.id);
+
+      document.getElementById('name').textContent = profile.display_name;
+      document.getElementById('avatar').textContent = profile.display_name.charAt(0).toUpperCase();
+      document.getElementById('levelSelect').value = profile.level || 0;
+      document.getElementById('levelName').textContent = ['New', 'Steady', 'Quick', 'Elite'][profile.level || 0];
+
+      const byId = {};
+      (runs || []).forEach(r => {
+        if (!byId[r.segment_id] || r.seconds < byId[r.segment_id].seconds) byId[r.segment_id] = r;
+      });
+
+      document.getElementById('collected').textContent = Object.keys(byId).length;
+      document.getElementById('runs').textContent = (runs || []).length;
+
+      let totalDist = 0;
+      for (const rid of Object.keys(byId)) {
+        const { data: seg } = await window.supabaseClient.from('segments').select('length_m').eq('id', rid).single();
+        if (seg) totalDist += seg.length_m;
+      }
+      document.getElementById('distance').textContent = (totalDist / 1000).toFixed(1);
+
+      // Streak calculation
+      const unique = [...new Set((runs || []).map(r => r.run_date))].sort().reverse();
+      let streak = 0;
+      let cursor = new Date();
+      for (const d of unique) {
+        const iso = cursor.toISOString().slice(0, 10);
+        if (d === iso) { streak++; cursor.setDate(cursor.getDate() - 1); }
+        else if (streak === 0 && d === new Date(cursor - 86400000).toISOString().slice(0, 10)) {
+          streak++; cursor = new Date(d); cursor.setDate(cursor.getDate() - 1);
+        } else break;
+      }
+      document.getElementById('streak').textContent = streak;
+
+      let html = '';
+      (runs || []).slice(0, 10).forEach(r => {
+        html += '<div class="row"><span>' + new Date(r.run_date).toLocaleDateString() + '</span><span>' + window.AppUtils.mmss(r.seconds) + '</span></div>';
+      });
+      document.getElementById('history').innerHTML = html || '<p style="color: var(--muted); text-align: center;">No runs yet</p>';
+    })();
+
+    function updateLevel() {
+      const lvl = Number(document.getElementById('levelSelect').value);
+      window.supabaseClient.from('profiles').update({ level: lvl }).eq('id', window.supabaseClient.auth.user().id).then(() => location.reload());
+    }
+
+    function signOut() {
+      window.supabaseClient.auth.signOut().then(() => location.href = '/section-2-auth.html');
+    }
+
+    function deleteAccountStep1() {
+      if (confirm('Permanently delete your account and all data? This cannot be undone.')) {
+        deleteAccountStep2();
+      }
+    }
+
+    async function deleteAccountStep2() {
+      const { data: { user } } = await window.supabaseClient.auth.getUser();
+      await window.supabaseClient.from('runs').delete().eq('user_id', user.id);
+      await window.supabaseClient.from('profiles').delete().eq('id', user.id);
+      await window.supabaseClient.auth.admin.deleteUser(user.id);
+      location.href = '/section-2-auth.html';
+    }
+  </script>
+</body>
+</html>

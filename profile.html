@@ -591,7 +591,11 @@
         document.getElementById('levelSelect').value = profile.level || 0;
         document.getElementById('levelName').textContent = levelNames[profile.level || 0];
         document.getElementById('unitsSelect').value = profile.units || 'metric';
-        document.getElementById('notificationsToggle').checked = profile.notifications_enabled !== false;
+
+        // Load notification preferences
+        document.getElementById('notif-daily').checked = profile.notif_daily_segment !== false;
+        document.getElementById('notif-streak').checked = profile.notif_streak_at_risk !== false;
+        document.getElementById('notif-beaten').checked = profile.notif_beaten === true;
 
         // Load runs
         const { data: runs, error: runsError } = await window.supabaseClient
@@ -737,17 +741,32 @@
       }
     }
 
-    async function updateNotifications() {
+    async function updateNotificationPreference(field, value) {
       try {
-        const enabled = document.getElementById('notificationsToggle').checked;
+        // If user has runs and this is their first toggle change, request permission
+        const { data: runs } = await window.supabaseClient
+          .from('runs')
+          .select('id')
+          .eq('user_id', currentUser.id)
+          .limit(1);
+
+        if (runs && runs.length > 0 && !localStorage.getItem('notif_permission_requested')) {
+          localStorage.setItem('notif_permission_requested', 'true');
+          if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+          }
+        }
+
+        // Update the preference in the database
         const { error } = await window.supabaseClient
           .from('profiles')
-          .update({ notifications_enabled: enabled })
+          .update({ [field]: value })
           .eq('id', currentUser.id);
+
         if (error) throw error;
         showSuccess('Notification preference updated');
       } catch (err) {
-        showError('Failed to update notifications: ' + err.message);
+        showError('Failed to update notification preference: ' + err.message);
       }
     }
 

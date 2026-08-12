@@ -35,6 +35,7 @@
       left: 0;
       right: 0;
       bottom: 56px;
+      z-index: 1;
     }
     .mapbox-canvas-container.mapboxgl-canvas-container {
       height: 100%;
@@ -226,6 +227,85 @@
       padding: 3px 5px;
       border-radius: 9px;
     }
+    /* Featured segment card */
+    .featured-container {
+      position: fixed;
+      top: 56px;
+      left: 0;
+      right: 0;
+      padding: 12px 12px 8px;
+      z-index: 4;
+      pointer-events: none;
+    }
+    .featured-card {
+      pointer-events: all;
+      background: var(--card);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: var(--sh);
+      border: 2px solid var(--accent);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .featured-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      margin: 0;
+    }
+    .featured-name {
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 16px;
+      margin: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--ink);
+    }
+    .featured-details {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .featured-detail-item {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .featured-detail-item .label {
+      color: var(--faint);
+      text-transform: uppercase;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+    .featured-detail-item .value {
+      font-family: "Inter Tight";
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--ink);
+      margin-top: 2px;
+    }
+    .featured-btn {
+      width: 100%;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 14px;
+      padding: 10px;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: transform 0.1s;
+    }
+    .featured-btn:active {
+      transform: scale(0.96);
+    }
   </style>
 </head>
 <body>
@@ -242,6 +322,8 @@
         </svg>
       </button>
     </div>
+
+    <div class="featured-container" id="featuredContainer"></div>
 
     <button id="searchAreaBtn" style="position:fixed;bottom:180px;left:12px;right:12px;background:#FF4B12;color:#fff;border:0;padding:12px;border-radius:12px;font-weight:700;cursor:pointer;z-index:3;display:none;">Search this area</button>
 
@@ -282,6 +364,7 @@
   <script src="lib/auth.js"></script>
   <script src="lib/api.js"></script>
   <script src="lib/harvest.js"></script>
+  <script src="lib/featured.js"></script>
   <script>
     /* ---------- 1. BIND EVERYTHING FIRST. NO AWAIT ABOVE THIS BLOCK ---------- */
     document.getElementById('areaBtn').addEventListener('click',
@@ -313,6 +396,8 @@
       if (profile.home_lat == null) { location.href = '/area-setup.html'; return; }
 
       document.getElementById('areaBtn').textContent = profile.home_label || 'Your area';
+
+      loadFeaturedSegment();
 
       mapboxgl.accessToken = window.AppConstants.MAPBOX_TOKEN;
       map = new mapboxgl.Map({
@@ -408,6 +493,67 @@
         setTimeout(() => { btn.disabled = false; btn.textContent = 'Search this area'; }, 2500);
       }
     });
+
+    function computeCell(lat, lng) {
+      return Math.floor(lat * 100) / 100 + ',' + Math.floor(lng * 100) / 100;
+    }
+
+    async function loadFeaturedSegment() {
+      if (!profile) return;
+      try {
+        const cell = computeCell(profile.home_lat, profile.home_lng);
+        const { data, error } = await window.supabaseClient
+          .from('segments').select('*')
+          .eq('cell', cell)
+          .eq('hidden', false)
+          .eq('approved', true)
+          .gte('quality', 50)
+          .order('quality', { ascending: false });
+        if (error || !data || data.length === 0) return;
+
+        const featured = window.AppFeatured.pickForCell(cell, data);
+        if (!featured) return;
+
+        const today = new Date().toISOString().slice(0, 10);
+        const { data: runs } = await window.supabaseClient
+          .from('runs').select('*').eq('segment_id', featured.id).eq('run_date', today);
+        const userRuns = runs ? runs.filter(r => r.user_id === (await window.supabaseClient.auth.getUser()).data.user.id) : [];
+        const userBest = userRuns.length > 0 ? Math.min(...userRuns.map(r => r.seconds)) : null;
+        const runnersToday = (runs || []).length;
+
+        const container = document.getElementById('featuredContainer');
+        container.innerHTML = `
+          <div class="featured-card">
+            <p class="featured-label">Today</p>
+            <h3 class="featured-name">${featured.name}</h3>
+            <div class="featured-details">
+              <div class="featured-detail-item">
+                <div class="label">Distance</div>
+                <div class="value">${(featured.length_m / 1000).toFixed(2)} km</div>
+              </div>
+              <div class="featured-detail-item">
+                <div class="label">Climb</div>
+                <div class="value">${featured.climb_m ? featured.climb_m + ' m' : '—'}</div>
+              </div>
+              <div class="featured-detail-item">
+                <div class="label">Target</div>
+                <div class="value">5:15/km</div>
+              </div>
+              <div class="featured-detail-item">
+                <div class="label">Runners</div>
+                <div class="value">${runnersToday || '0'}</div>
+              </div>
+            </div>
+            <button class="featured-btn" id="featuredRunBtn">Run this</button>
+          </div>
+        `;
+        document.getElementById('featuredRunBtn').addEventListener('click', () => {
+          location.href = '/recording.html?segment_id=' + featured.id;
+        });
+      } catch (e) {
+        console.error('Featured segment load failed:', e);
+      }
+    }
 
     function showError(msg) {
       const box = document.createElement('div');

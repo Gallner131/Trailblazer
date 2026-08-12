@@ -734,6 +734,7 @@
     async function loadSegmentsInView() {
       // Guard with in-flight flag
       if (!map || loading) return;
+      if (!map.isLoaded()) return;
       loading = true;
       const bar = document.getElementById('loadingBar');
       bar.style.display = 'block';

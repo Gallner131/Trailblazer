@@ -8,80 +8,533 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.css" rel="stylesheet">
   <style>
-    :root { --bg: #F3F4F6; --card: #FFF; --ink: #0E1116; --muted: #6E7681; --faint: #9AA1AC; --line: #E7E9ED; --accent: #FF4B12; }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; }
-    body { padding: 16px; background: var(--bg); font-family: Inter, sans-serif; }
-    .header { display: flex; justify-content: space-between; margin-bottom: 16px; gap: 8px; }
-    .view-btn { flex: 1; background: var(--card); border: 1px solid var(--line); padding: 8px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-    .view-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .card { background: var(--card); border-radius: 12px; padding: 12px; }
-    .card h4 { margin: 0 0 8px; font-size: 14px; }
-    .card p { margin: 4px 0; font-size: 12px; color: var(--muted); }
-    .empty { text-align: center; padding: 48px 16px; color: var(--muted); }
-    .tabs { position: fixed; bottom: 0; left: 0; right: 0; height: 56px; display: flex; background: var(--card); border-top: 1px solid var(--line); }
-    .tab { flex: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: 600; font-size: 12px; }
-    .tab.active { color: var(--accent); }
+    :root {
+      --bg: #F3F4F6;
+      --card: #FFF;
+      --ink: #0E1116;
+      --muted: #6E7681;
+      --faint: #9AA1AC;
+      --line: #E7E9ED;
+      --accent: #FF4B12;
+      --sh: 0 1px 2px rgba(14,17,22,.05), 0 10px 28px -18px rgba(14,17,22,.35);
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+    #map {
+      position: fixed;
+      top: 120px;
+      left: 0;
+      right: 0;
+      bottom: 56px;
+      z-index: 1;
+      display: none;
+    }
+    #map.visible {
+      display: block;
+    }
+    /* Header */
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 16px;
+      background: var(--card);
+      border-bottom: 1px solid var(--line);
+      z-index: 5;
+    }
+    .view-controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .view-btn {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      padding: 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    .view-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    /* Stats */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .stat {
+      text-align: center;
+      padding: 8px;
+      background: var(--bg);
+      border-radius: 8px;
+    }
+    .stat-value {
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--ink);
+    }
+    .stat-label {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 2px;
+      font-weight: 600;
+    }
+    /* Content area */
+    #content {
+      position: fixed;
+      top: 120px;
+      left: 0;
+      right: 0;
+      bottom: 56px;
+      overflow-y: auto;
+      padding: 16px;
+      display: none;
+    }
+    #content.visible {
+      display: block;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding-bottom: 8px;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 12px;
+      cursor: pointer;
+      transition: transform 0.1s;
+      border: 1px solid var(--line);
+    }
+    .card:active {
+      transform: scale(0.96);
+    }
+    .card h4 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      font-family: "Inter Tight";
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .card p {
+      margin: 4px 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--line);
+    }
+    .rarity-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .rarity-common {
+      background: #E8F5E9;
+      color: #2E7D32;
+    }
+    .rarity-uncommon {
+      background: #E3F2FD;
+      color: #1565C0;
+    }
+    .rarity-rare {
+      background: #F3E5F5;
+      color: #6A1B9A;
+    }
+    .rarity-legendary {
+      background: #FFF3E0;
+      color: #E65100;
+    }
+    .rarity-icon {
+      width: 12px;
+      height: 12px;
+      display: inline-block;
+    }
+    .empty {
+      text-align: center;
+      padding: 48px 16px;
+      color: var(--muted);
+      margin-top: 60px;
+    }
+    .loading {
+      text-align: center;
+      padding: 48px 16px;
+      color: var(--muted);
+      margin-top: 60px;
+    }
+    .loading-spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--line);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    /* Tabs */
+    .tabs {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 56px;
+      display: flex;
+      border-top: 1px solid var(--line);
+      background: var(--card);
+      z-index: 5;
+    }
+    .tab {
+      flex: 1;
+      background: none;
+      border: 0;
+      padding: 9px 0 12px;
+      cursor: pointer;
+      color: var(--faint);
+      font-family: inherit;
+      font-size: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      transition: color 0.2s;
+    }
+    .tab svg {
+      width: 20px;
+      height: 20px;
+    }
+    .tab[aria-selected="true"] {
+      color: var(--ink);
+    }
   </style>
 </head>
 <body>
+  <!-- Header with view toggle and stats -->
   <div class="header">
-    <button class="view-btn active" onclick="setView('grid')">Grid</button>
-    <button class="view-btn" onclick="setView('map')">Map</button>
+    <div class="view-controls">
+      <button class="view-btn active" data-view="grid" onclick="setView('grid')">Grid</button>
+      <button class="view-btn" data-view="map" onclick="setView('map')">Map</button>
+    </div>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value" id="statCollected">0</div>
+        <div class="stat-label">Collected</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="statAvailable">0</div>
+        <div class="stat-label">Available</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="statPercent">0%</div>
+        <div class="stat-label">Claimed</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="statStreak">0</div>
+        <div class="stat-label">Streak</div>
+      </div>
+    </div>
   </div>
+
+  <!-- Map view -->
+  <div id="map"></div>
+
+  <!-- Grid/content view -->
   <div id="content"></div>
 
+  <!-- Tabs -->
   <div class="tabs">
-    <div class="tab active" onclick="location.href='/home-map.html'">Map</div>
-    <div class="tab" onclick="location.href='/collection.html'">Collection</div>
-    <div class="tab" onclick="location.href='/boards.html'">Boards</div>
-    <div class="tab" onclick="location.href='/profile.html'">Profile</div>
+    <button class="tab" onclick="location.href='/home-map.html'">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M20.5 3c-.26 0-.5.04-.74.1-.35-.85-1.18-1.46-2.18-1.46-1.3 0-2.3 1-2.22 2.48h-.02C11.89 2.1 9.69 1 7 1 3.13 1 0 4.13 0 8v12c0 .04.02.08.02.12C.14 20.74 1.7 22 3.5 22c1.3 0 2.4-.84 2.82-2h.02c2.11 1.5 4.31 2 7.16 2 3.87 0 7-3.13 7-7V5c0-.86.13-1.69.36-2.49.21-.15.43-.29.64-.42.05 0 .09.02.14.02 1.3 0 2.3-1 2.22-2.48C22.5 3.5 21.5 3 20.5 3z"/>
+      </svg>
+      Map
+    </button>
+    <button class="tab" aria-selected="true" onclick="location.href='/collection.html'">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M5 21h14V5H5v16zm0-18h14c1.1 0 2 .9 2 2v14c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V5c0-1.1.9-2 2-2z"/>
+      </svg>
+      Collection
+    </button>
+    <button class="tab" onclick="location.href='/boards.html'">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm1 11v-5h-2v5h2zM8 11c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm1 11v-5H7v5h2z"/>
+      </svg>
+      Boards
+    </button>
+    <button class="tab" onclick="location.href='/profile.html'">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+      </svg>
+      You
+    </button>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js"></script>
   <script src="lib/constants.js"></script>
   <script src="lib/utils.js"></script>
   <script src="lib/auth.js"></script>
   <script>
     let currentView = 'grid';
-    function setView(v) { currentView = v; render(); }
+    let map = null;
+    let markers = [];
+    let data = {
+      profile: null,
+      allSegments: [],
+      userRuns: [],
+      claimedSegments: {},
+      claimedIds: new Set()
+    };
 
-    (async () => {
-      const { data: { user } } = await window.supabaseClient.auth.getUser();
-      if (!user) { location.href = '/section-2-auth.html'; return; }
+    function setView(v) {
+      currentView = v;
+      document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelector(`[data-view="${v}"]`).classList.add('active');
 
-      const { data: runs } = await window.supabaseClient
-        .from('runs').select('segment_id,seconds,run_date,segments(name,length_m)')
-        .eq('user_id', user.id).order('run_date', { ascending: false });
-
-      const byId = {};
-      (runs || []).forEach(r => {
-        if (!byId[r.segment_id] || r.seconds < byId[r.segment_id].seconds) byId[r.segment_id] = r;
-      });
-      const claimed = Object.values(byId);
-
-      function render() {
-        const content = document.getElementById('content');
-        if (claimed.length === 0) {
-          content.innerHTML = '<div class="empty">Run today\'s segment to claim your first</div>';
-          return;
+      if (v === 'map') {
+        document.getElementById('content').classList.remove('visible');
+        document.getElementById('map').classList.add('visible');
+        if (map) {
+          setTimeout(() => map.resize(), 100);
         }
+      } else {
+        document.getElementById('map').classList.remove('visible');
+        document.getElementById('content').classList.add('visible');
+      }
+    }
 
-        if (currentView === 'grid') {
-          let html = '<div class="grid">';
-          claimed.forEach(c => {
-            html += '<div class="card" style="cursor:pointer;" onclick="location.href=\'/segment-sheet.html?segment_id=' + c.segment_id + '\'" ><h4>' + c.segments.name + '</h4><p>' + window.AppUtils.mmss(c.seconds) + '</p><p>' + new Date(c.run_date).toLocaleDateString() + '</p></div>';
-          });
-          html += '</div>';
-          content.innerHTML = html;
+    function getRarityBadge(claimCount) {
+      // Rarity based on claim count (lower is rarer)
+      if (claimCount > 20) return { label: 'Common', class: 'rarity-common', icon: '●' };
+      if (claimCount > 5) return { label: 'Uncommon', class: 'rarity-uncommon', icon: '◆' };
+      if (claimCount > 1) return { label: 'Rare', class: 'rarity-rare', icon: '★' };
+      return { label: 'Legendary', class: 'rarity-legendary', icon: '✦' };
+    }
+
+    function calculateStreak(runs) {
+      if (runs.length === 0) return 0;
+
+      const dates = runs.map(r => new Date(r.run_date).toISOString().slice(0, 10)).sort().reverse();
+      let streak = 1;
+
+      for (let i = 1; i < dates.length; i++) {
+        const curr = new Date(dates[i]);
+        const prev = new Date(dates[i - 1]);
+        const diff = (prev - curr) / (1000 * 60 * 60 * 24);
+
+        if (diff === 1) {
+          streak++;
         } else {
-          content.innerHTML = '<div class="empty">Showing ' + claimed.length + ' claimed segments in your area</div>';
+          break;
         }
       }
 
-      render();
+      return streak;
+    }
+
+    async function initMap() {
+      if (!data.profile || !data.allSegments) return;
+
+      mapboxgl.accessToken = window.AppConstants.MAPBOX_TOKEN;
+      map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/outdoors-v12',
+        center: [data.profile.home_lng, data.profile.home_lat],
+        zoom: 14
+      });
+
+      map.on('load', () => {
+        map.resize();
+        renderMapMarkers();
+      });
+    }
+
+    function renderMapMarkers() {
+      markers.forEach(m => m.remove());
+      markers = [];
+
+      data.allSegments.forEach(seg => {
+        const claimed = data.claimedIds.has(seg.id);
+        const el = document.createElement('div');
+        el.className = 'seg-pin';
+
+        // Create marker element
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        dot.style.background = claimed ? '#FF4B12' : '#D3D4D6';
+        dot.style.opacity = claimed ? '1' : '0.4';
+        el.appendChild(dot);
+
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => {
+          window.location.href = '/segment-sheet.html?segment_id=' + seg.id;
+        });
+
+        markers.push(new mapboxgl.Marker(el)
+          .setLngLat([seg.centre_lng, seg.centre_lat])
+          .addTo(map));
+      });
+    }
+
+    function renderGrid() {
+      const content = document.getElementById('content');
+
+      if (data.userRuns.length === 0) {
+        content.innerHTML = '<div class="empty">Run today\'s segment to claim your first</div>';
+        return;
+      }
+
+      let html = '<div class="grid">';
+
+      Object.values(data.claimedSegments).forEach(claimed => {
+        const claimCount = data.allSegments.filter(s => s.id === claimed.segment_id).length > 0 ?
+          data.userRuns.filter(r => r.segment_id === claimed.segment_id).length : 0;
+        const rarity = getRarityBadge(claimCount);
+
+        const dateStr = new Date(claimed.run_date).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric'
+        });
+
+        html += `
+          <div class="card" onclick="location.href='/segment-sheet.html?segment_id=${claimed.segment_id}'">
+            <h4>${claimed.segments.name}</h4>
+            <p>Claimed ${dateStr}</p>
+            <p>Best: ${window.AppUtils.mmss(claimed.seconds)}</p>
+            <div class="card-footer">
+              <div class="rarity-badge ${rarity.class}">
+                <span class="rarity-icon">${rarity.icon}</span>
+                ${rarity.label}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      html += '</div>';
+      content.innerHTML = html;
+    }
+
+    (async () => {
+      try {
+        // Auth check
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        if (!user) {
+          location.href = '/section-2-auth.html';
+          return;
+        }
+
+        // Load profile
+        const { data: profile, error: profileError } = await window.supabaseClient
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError || !profile) {
+          document.getElementById('content').innerHTML = '<div class="empty">Could not load profile</div>';
+          return;
+        }
+
+        data.profile = profile;
+
+        // Load all segments in user's cell
+        const cell = window.AppUtils.cellOf(profile.home_lat, profile.home_lng);
+        const { data: allSegs, error: segsError } = await window.supabaseClient
+          .from('segments')
+          .select('*')
+          .eq('cell', cell)
+          .eq('approved', true);
+
+        if (segsError) {
+          document.getElementById('content').innerHTML = '<div class="empty">Could not load segments</div>';
+          return;
+        }
+
+        data.allSegments = allSegs || [];
+
+        // Load user's runs
+        const { data: runs, error: runsError } = await window.supabaseClient
+          .from('runs')
+          .select('segment_id,seconds,run_date,segments(name,length_m)')
+          .eq('user_id', user.id)
+          .order('run_date', { ascending: false });
+
+        if (runsError) {
+          document.getElementById('content').innerHTML = '<div class="empty">Could not load runs</div>';
+          return;
+        }
+
+        data.userRuns = runs || [];
+
+        // Calculate claimed segments (best time for each)
+        const byId = {};
+        data.userRuns.forEach(r => {
+          if (!byId[r.segment_id] || r.seconds < byId[r.segment_id].seconds) {
+            byId[r.segment_id] = r;
+          }
+        });
+        data.claimedSegments = byId;
+        data.claimedIds = new Set(Object.keys(byId).map(k => parseInt(k)));
+
+        // Update stats
+        const collected = Object.keys(data.claimedSegments).length;
+        const available = data.allSegments.length;
+        const percent = available > 0 ? Math.round((collected / available) * 100) : 0;
+        const streak = calculateStreak(data.userRuns);
+
+        document.getElementById('statCollected').textContent = collected;
+        document.getElementById('statAvailable').textContent = available;
+        document.getElementById('statPercent').textContent = percent + '%';
+        document.getElementById('statStreak').textContent = streak;
+
+        // Render initial view
+        renderGrid();
+        document.getElementById('content').classList.add('visible');
+
+        // Initialize map for later use
+        initMap();
+
+      } catch (e) {
+        console.error('Error:', e);
+        document.getElementById('content').innerHTML = '<div class="empty">Error loading collection</div>';
+      }
     })();
   </script>
 </body>

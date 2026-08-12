@@ -27,30 +27,21 @@
     html, body {
       margin: 0;
       height: 100%;
-    }
-    .phone {
-      width: 100%;
-      height: 100%;
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      background: var(--bg);
-    }
-    @media (max-width: 520px) {
-      .phone {
-        height: 100dvh;
-      }
+      overflow: hidden;
     }
     #map {
-      flex: 1;
-      position: relative;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 56px;
     }
     .mapbox-canvas-container.mapboxgl-canvas-container {
       height: 100%;
     }
     /* Top bar */
     .topbar {
-      position: absolute;
+      position: fixed;
       top: 0;
       left: 0;
       right: 0;
@@ -99,8 +90,8 @@
     }
     /* Card strip */
     .card-strip {
-      position: absolute;
-      bottom: 72px;
+      position: fixed;
+      bottom: 56px;
       left: 0;
       right: 0;
       height: 120px;
@@ -156,15 +147,15 @@
     }
     /* Tabs */
     .tabs {
-      position: absolute;
-      bottom: 0;
+      position: fixed;
       left: 0;
       right: 0;
+      bottom: 0;
+      height: 56px;
       display: flex;
       border-top: 1px solid var(--line);
       background: var(--card);
       z-index: 5;
-      padding-bottom: env(safe-area-inset-bottom);
     }
     .tab {
       flex: 1;
@@ -210,6 +201,31 @@
       opacity: 0;
       transition: opacity 0.3s;
     }
+    .seg-pin {
+      position: relative;
+      width: 22px;
+      height: 22px;
+      cursor: pointer;
+    }
+    .seg-pin .dot {
+      display: block;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #FF4B12;
+      border: 2.5px solid #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,.35);
+    }
+    .seg-pin .badge {
+      position: absolute;
+      top: -7px;
+      right: -9px;
+      background: #0E1116;
+      color: #fff;
+      font: 700 10px/1 Inter, sans-serif;
+      padding: 3px 5px;
+      border-radius: 9px;
+    }
   </style>
 </head>
 <body>
@@ -226,6 +242,8 @@
         </svg>
       </button>
     </div>
+
+    <button id="searchAreaBtn" style="position:fixed;bottom:180px;left:12px;right:12px;background:#FF4B12;color:#fff;border:0;padding:12px;border-radius:12px;font-weight:700;cursor:pointer;z-index:3;display:none;">Search this area</button>
 
     <div class="card-strip" id="cardStrip"></div>
 
@@ -260,182 +278,143 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js"></script>
   <script src="lib/constants.js"></script>
+  <script src="lib/utils.js"></script>
   <script src="lib/auth.js"></script>
   <script src="lib/api.js"></script>
   <script src="lib/harvest.js"></script>
   <script>
-    // Home Map Logic
-    mapboxgl.accessToken = window.AppConstants.MAPBOX_TOKEN;
+    /* ---------- 1. BIND EVERYTHING FIRST. NO AWAIT ABOVE THIS BLOCK ---------- */
+    document.getElementById('areaBtn').addEventListener('click',
+      () => location.href = '/area-setup.html');
+    document.getElementById('tabCollection').addEventListener('click',
+      () => alert('Collection is coming soon'));
+    document.getElementById('tabBoards').addEventListener('click',
+      () => alert('Boards are coming soon'));
+    document.getElementById('tabYou').addEventListener('click',
+      () => alert('Your profile is coming soon'));
+    document.getElementById('tabMap').addEventListener('click', () => {});
 
-    let currentProfile, map, segments = [];
-    const markers = [];
+    let map = null, markers = [], profile = null;
 
-    // Initialize in strict order: user → profile → map
+    document.getElementById('locateBtn').addEventListener('click', () => {
+      if (map && profile) map.flyTo({ center: [profile.home_lng, profile.home_lat], zoom: 15 });
+    });
+
+    /* ---------- 2. THEN load data and create the map ---------- */
     (async () => {
-      // 1. Get user
       const { data: { user } } = await window.supabaseClient.auth.getUser();
-      if (!user) {
-        window.location.href = '/section-2-auth.html';
-        return;
-      }
+      if (!user) { location.href = '/section-2-auth.html'; return; }
 
-      // 2. Get profile
-      const { data: profile, error } = await window.AppAPI.getProfile(user.id);
-      if (error || !profile) {
-        window.location.href = '/area-setup.html';
-        return;
-      }
+      const { data, error } = await window.supabaseClient
+        .from('profiles').select('*').eq('id', user.id).single();
+      if (error || !data) { showError('Could not load your profile: ' + (error && error.message)); return; }
+      profile = data;
 
-      // 3. Check home area exists
-      if (!profile.home_lat || !profile.home_lng) {
-        window.location.href = '/area-setup.html';
-        return;
-      }
+      if (profile.home_lat == null) { location.href = '/area-setup.html'; return; }
 
-      currentProfile = profile;
+      document.getElementById('areaBtn').textContent = profile.home_label || 'Your area';
 
-      // 4. THEN create the map
+      mapboxgl.accessToken = window.AppConstants.MAPBOX_TOKEN;
       map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/outdoors-v12',
         center: [profile.home_lng, profile.home_lat],
-        zoom: 14,
-        pitch: 0,
-        bearing: 0
+        zoom: 14
       });
 
-      // Initialize UI after map exists
-      initializePageUI();
+      map.on('error', e => console.error('MAPBOX ERROR:', e && e.error));
+      map.on('load', () => { map.resize(); loadSegmentsInView(); });
+      map.on('idle', loadSegmentsInView);
     })();
 
-    // Initialize map
-    function initializePageUI() {
-      // Set up UI after map exists
-      document.getElementById('areaBtn').textContent = currentProfile.home_label || 'Area';
-
-      // On idle, query segments in view
-      map.on('idle', loadSegmentsInView);
-
-      // Tab navigation
-      document.getElementById('tabMap').addEventListener('click', () => {});  // Already here
-      document.getElementById('tabCollection').addEventListener('click', () => {
-        window.location.href = '/section-8-collection.html';
-      });
-      document.getElementById('tabBoards').addEventListener('click', () => {
-        window.location.href = '/section-9-boards.html';
-      });
-      document.getElementById('tabYou').addEventListener('click', () => {
-        window.location.href = '/section-10-profile.html';
-      });
-
-      // Area button
-      document.getElementById('areaBtn').addEventListener('click', () => {
-        window.location.href = '/area-setup.html';
-      });
-
-      // Locate button
-      document.getElementById('locateBtn').addEventListener('click', () => {
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(pos => {
-            map.setCenter([pos.coords.longitude, pos.coords.latitude]);
-            map.setZoom(15);
-          });
-        }
-      });
-    }
-
+    /* ---------- 3. segments ---------- */
+    let loading = false;
     async function loadSegmentsInView() {
-      const bounds = map.getBounds();
-      const { data, error } = await window.AppAPI.getSegmentsInBounds({
-        minLat: bounds.getSouth(),
-        minLng: bounds.getWest(),
-        maxLat: bounds.getNorth(),
-        maxLng: bounds.getEast()
-      });
+      if (!map || loading) return;
+      loading = true;
+      try {
+        const b = map.getBounds();
+        const { data, error } = await window.supabaseClient
+          .from('segments').select('*')
+          .gte('centre_lat', b.getSouth()).lte('centre_lat', b.getNorth())
+          .gte('centre_lng', b.getWest()).lte('centre_lng', b.getEast())
+          .limit(200);
+        if (error) throw new Error(error.message);
 
-      if (error) {
-        console.error('Failed to load segments:', error);
-        return;
-      }
+        const today = new Date().toISOString().slice(0, 10);
+        const { data: runs } = await window.supabaseClient
+          .from('runs').select('segment_id').eq('run_date', today);
+        const counts = {};
+        (runs || []).forEach(r => counts[r.segment_id] = (counts[r.segment_id] || 0) + 1);
 
-      segments = data || [];
+        markers.forEach(m => m.remove());
+        markers = [];
 
-      // Clear old markers
-      markers.forEach(m => m.remove());
-      markers.length = 0;
-
-      // Add new pins
-      for (const segment of segments) {
-        const { data: runs } = await window.AppAPI.getRunsForSegmentToday(segment.id);
-        const count = runs?.length || 0;
-
-        const el = document.createElement('div');
-        el.className = 'segment-pin';
-        el.style.cssText = `
-          width: 32px;
-          height: 32px;
-          background: var(--accent);
-          border-radius: 50%;
-          display: grid;
-          place-items: center;
-          color: white;
-          font-size: 12px;
-          font-weight: 700;
-          font-family: "Inter Tight";
-          cursor: pointer;
-          box-shadow: var(--sh);
-        `;
-
-        if (count > 0) {
-          el.textContent = count;
-        } else {
-          el.textContent = '';
-          el.style.border = '2px solid var(--ink)';
-          el.style.background = 'transparent';
-          el.style.color = 'var(--ink)';
-        }
-
-        const marker = new mapboxgl.Marker(el)
-          .setLngLat([segment.centre_lng, segment.centre_lat])
-          .addTo(map);
-
-        markers.push(marker);
-
-        el.addEventListener('click', () => {
-          window.location.href = '/segment-sheet.html?segment_id=' + segment.id;
+        (data || []).forEach(s => {
+          const el = document.createElement('div');
+          el.className = 'seg-pin';
+          const n = counts[s.id] || 0;
+          el.innerHTML = '<span class="dot"></span>' +
+            (n > 0 ? '<span class="badge">' + n + '</span>' : '');
+          el.addEventListener('click', () => openSheet(s));
+          markers.push(new mapboxgl.Marker(el)
+            .setLngLat([s.centre_lng, s.centre_lat]).addTo(map));
         });
+
+        document.getElementById('searchAreaBtn').style.display =
+          (data && data.length >= 5) ? 'none' : 'block';
+        updateCardStrip(data || [], counts);
+      } catch (e) {
+        showError('Could not load segments: ' + e.message);
+      } finally {
+        loading = false;
       }
-
-      // Update card strip
-      updateCardStrip();
-
-      // Hide loading
-      document.getElementById('loadingBar').classList.add('done');
     }
 
-    function updateCardStrip() {
+    function openSheet(s) {
+      window.location.href = '/segment-sheet.html?segment_id=' + s.id;
+    }
+
+    function updateCardStrip(segs, counts) {
       const strip = document.getElementById('cardStrip');
-      strip.innerHTML = segments.map(seg => {
-        const coords = JSON.parse(seg.geom);
-        const distance = window.AppUtils.haversine(
-          currentProfile.home_lat, currentProfile.home_lng,
-          coords[0][0], coords[0][1]
-        );
-        return `
-          <div class="segment-card" data-segment-id="${seg.id}">
-            <h4>${seg.name}</h4>
-            <div class="distance">${window.AppUtils.formatDistance(seg.length_m)}</div>
-            <div class="runners">${window.AppUtils.formatDistance(distance)} away</div>
-          </div>
-        `;
-      }).join('');
+      strip.innerHTML = segs.map(s => `
+        <div class="segment-card" data-segment-id="${s.id}">
+          <h4>${s.name}</h4>
+          <div class="distance">${(s.length_m / 1000).toFixed(1)}km</div>
+          <div class="runners">${counts[s.id] || 0} runs today</div>
+        </div>
+      `).join('');
 
       strip.querySelectorAll('.segment-card').forEach(card => {
         card.addEventListener('click', () => {
-          const segId = card.dataset.segmentId;
-          window.location.href = '/segment-sheet.html?segment_id=' + segId;
+          window.location.href = '/segment-sheet.html?segment_id=' + card.dataset.segmentId;
         });
       });
+    }
+
+    document.getElementById('searchAreaBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('searchAreaBtn');
+      btn.disabled = true;
+      const c = map.getCenter();
+      try {
+        const res = await window.AppHarvest.harvestArea(
+          c.lat, c.lng, 1500, msg => btn.textContent = msg);
+        btn.textContent = `Added ${res.inserted} segments`;
+        await loadSegmentsInView();
+      } catch (e) {
+        btn.textContent = 'Search failed';
+        showError(e.message);
+      } finally {
+        setTimeout(() => { btn.disabled = false; btn.textContent = 'Search this area'; }, 2500);
+      }
+    });
+
+    function showError(msg) {
+      const box = document.createElement('div');
+      box.style.cssText = 'position:fixed;top:50px;left:16px;right:16px;background:#FFF1EC;border:1px solid #FFD9CB;color:#8C2C0E;padding:12px;border-radius:10px;font-size:13px;z-index:10;';
+      box.textContent = msg;
+      document.body.appendChild(box);
+      setTimeout(() => box.remove(), 5000);
     }
   </script>
 </body>

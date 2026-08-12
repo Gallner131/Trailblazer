@@ -166,6 +166,20 @@
     .search-results button:last-child {
       border-bottom: 0;
     }
+    .search-row {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--ink);
+      transition: background 0.1s;
+    }
+    .search-row:hover {
+      background: var(--bg);
+    }
+    .search-row:last-child {
+      border-bottom: 0;
+    }
     .location-label {
       font-size: 13px;
       color: var(--muted);
@@ -263,214 +277,134 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js"></script>
   <script src="lib/constants.js"></script>
+  <script src="lib/utils.js"></script>
   <script src="lib/auth.js"></script>
   <script src="lib/api.js"></script>
   <script src="lib/harvest.js"></script>
   <script>
-    // Area Setup Logic
     mapboxgl.accessToken = window.AppConstants.MAPBOX_TOKEN;
-
     let currentLat = 51.5074, currentLng = -0.1278, currentLabel = 'London';
-    let map, isDragging = false;
-    let userId = null;
+    let map, marker, userId = null;
 
-    // Wait for session before initializing
     (async () => {
       const { data: { user } } = await window.supabaseClient.auth.getUser();
-      if (!user) {
-        window.location.href = '/section-2-auth.html';
-        return;
-      }
+      if (!user) { location.href = '/section-2-auth.html'; return; }
       userId = user.id;
-      initializePageUI();
-    })();
 
-    function initializePageUI() {
-      // Initialize map at London (default)
       map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/outdoors-v12',
         zoom: 12,
-        pitch: 0,
-        bearing: 0,
         center: [-0.1278, 51.5074]
       });
 
-      // Pin drag
-      const pin = document.getElementById('pin');
-      pin.addEventListener('mousedown', () => {
-        isDragging = true;
-        pin.classList.add('dragging');
-      });
+      marker = new mapboxgl.Marker({ draggable: true }).setLngLat([currentLng, currentLat]).addTo(map);
 
-      document.addEventListener('mousemove', async (e) => {
-        if (!isDragging) return;
-        const rect = document.getElementById('map').getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        const coords = map.unproject([x, y]);
-        currentLat = coords.lat;
-        currentLng = coords.lng;
-
-        const { data, error } = await window.AppAPI.reverseGeocode(currentLat, currentLng);
-        if (!error && data) {
-          currentLabel = data.place_name;
-        } else {
-          currentLabel = currentLat.toFixed(3) + ', ' + currentLng.toFixed(3);
-        }
-        document.getElementById('labelText').textContent = currentLabel;
-      });
-
-      document.addEventListener('mouseup', () => {
-        isDragging = false;
-        pin.classList.remove('dragging');
-      });
-
-      // Search - works immediately, doesn't wait for geolocation
-      const searchInput = document.getElementById('searchInput');
-      const searchResults = document.getElementById('searchResults');
-      let searchTimeout;
-
-      searchInput.addEventListener('input', async (e) => {
-        const query = e.target.value.trim();
-        if (!query || query.length < 3) {
-          searchResults.style.display = 'none';
-          return;
-        }
-
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(async () => {
-          const { data, error } = await window.AppAPI.geocodePlace(query);
-          if (error) {
-            showError('Search failed: ' + error.message);
-            return;
+      marker.on('dragend', async () => {
+        const { lng, lat } = marker.getLngLat();
+        currentLat = lat;
+        currentLng = lng;
+        const url = 'https://api.mapbox.com/geocoding/v5/mapbox.places/'
+          + lng + ',' + lat + '.json?access_token=' + window.AppConstants.MAPBOX_TOKEN;
+        try {
+          const r = await fetch(url);
+          const j = await r.json();
+          if (j.features && j.features[0]) {
+            currentLabel = j.features[0].place_name;
+            document.getElementById('labelText').textContent = currentLabel;
           }
+        } catch (e) {}
+      });
 
-          if (!data || data.length === 0) {
-            searchResults.innerHTML = '<button style="cursor: not-allowed; opacity: 0.5;">No results</button>';
-            searchResults.style.display = 'block';
-            return;
-          }
+      // Search
+      const input = document.getElementById('searchInput');
+      const results = document.getElementById('searchResults');
+      let debounce = null;
 
-          searchResults.innerHTML = data.map(feature => {
-            const center = feature.center;
-            return `<button data-lat="${center[1]}" data-lng="${center[0]}" data-name="${feature.place_name}">
-              ${feature.place_name}
-            </button>`;
-          }).join('');
-
-          searchResults.style.display = 'block';
-
-          searchResults.querySelectorAll('button').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-              e.preventDefault();
-              currentLat = parseFloat(btn.dataset.lat);
-              currentLng = parseFloat(btn.dataset.lng);
-              currentLabel = btn.dataset.name;
-              searchInput.value = '';
-              searchResults.style.display = 'none';
-              document.getElementById('labelText').textContent = currentLabel;
-              map.setCenter([currentLng, currentLat]);
+      input.addEventListener('input', () => {
+        clearTimeout(debounce);
+        const q = input.value.trim();
+        if (q.length < 3) { results.innerHTML = ''; return; }
+        debounce = setTimeout(async () => {
+          const url = 'https://api.mapbox.com/geocoding/v5/mapbox.places/'
+            + encodeURIComponent(q) + '.json?access_token='
+            + window.AppConstants.MAPBOX_TOKEN
+            + '&country=gb&limit=5&proximity=-0.1278,51.5074';
+          try {
+            const r = await fetch(url);
+            const j = await r.json();
+            results.innerHTML = '';
+            (j.features || []).forEach(f => {
+              const row = document.createElement('div');
+              row.className = 'search-row';
+              row.textContent = f.place_name;
+              row.addEventListener('click', () => {
+                const [lng, lat] = f.center;
+                currentLat = lat; currentLng = lng;
+                currentLabel = f.text;
+                map.flyTo({ center: [lng, lat], zoom: 14 });
+                marker.setLngLat([lng, lat]);
+                document.getElementById('labelText').textContent = f.text;
+                results.innerHTML = '';
+                input.value = '';
+              });
+              results.appendChild(row);
             });
-          });
+          } catch (e) { results.innerHTML = '<div class="search-row">Search failed</div>'; }
         }, 300);
       });
 
       // Save button
-      const saveBtn = document.getElementById('saveBtn');
-      if (saveBtn) {
-        saveBtn.addEventListener('click', async () => {
-          console.log('Save button clicked! Coordinates:', { currentLat, currentLng, currentLabel });
-
-          if (!currentLat || !currentLng) {
-            showError('Please set your area first. Use search or allow location access.');
-            return;
-          }
-
-          saveBtn.disabled = true;
-          showStatus('Saving your area…');
-
-          const { data: { session } } = await window.supabaseClient.auth.getSession();
-          if (!session || !session.user) {
-            showError('Your session expired. Please sign in again.');
-            window.location.href = '/section-2-auth.html';
-            return;
-          }
-
-          console.log('Saving profile: user=' + userId + ', lat=' + currentLat + ', lng=' + currentLng + ', label=' + currentLabel);
-
-          const { error: updateErr } = await window.AppAPI.updateProfile(userId, {
-            home_lat: currentLat,
-            home_lng: currentLng,
-            home_label: currentLabel
-          });
-
-          if (updateErr) {
-            console.error('Profile update failed', updateErr);
-            showError('Failed to save area: ' + (updateErr.message || updateErr.code || 'Database error'));
-            saveBtn.disabled = false;
-            return;
-          }
-
-          console.log('Profile saved successfully, redirecting to map');
-
-          // Harvest segments in background
-          window.AppHarvest.harvestArea(currentLat, currentLng, 2).catch(err => {
-            console.error('Background harvest failed:', err);
-          });
-
-          window.location.href = '/home-map.html';
-        });
-      }
-    }
-
-    // Geolocation (runs independently in background)
-    async function initGeolocation() {
-      try {
-        const pos = await Promise.race([
-          new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(
-              pos => resolve(pos),
-              err => reject(err)
-            );
-          }),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Geolocation timeout')), window.AppConstants.TIMEOUTS.location)
-          )
-        ]);
-
-        currentLat = pos.coords.latitude;
-        currentLng = pos.coords.longitude;
-        map.setCenter([currentLng, currentLat]);
-
-        const { data, error } = await window.AppAPI.reverseGeocode(currentLat, currentLng);
-        if (!error && data) {
-          currentLabel = data.place_name;
-        } else {
-          currentLabel = 'Your location';
+      document.getElementById('saveBtn').addEventListener('click', async () => {
+        if (!currentLat || !currentLng) {
+          showError('Please set your area first. Use search or drag the pin.');
+          return;
         }
-        document.getElementById('labelText').textContent = currentLabel;
-      } catch (err) {
-        // Fall back to London, don't block the page
-        document.getElementById('labelText').textContent = 'London (denied location)';
-      }
-    }
+
+        const btn = document.getElementById('saveBtn');
+        btn.disabled = true;
+
+        try {
+          const { error } = await window.supabaseClient
+            .from('profiles')
+            .update({ home_lat: currentLat, home_lng: currentLng, home_label: currentLabel })
+            .eq('id', userId);
+          if (error) throw error;
+
+          window.AppHarvest.harvestArea(currentLat, currentLng, 1500, msg => {
+            document.getElementById('status').textContent = msg;
+            document.getElementById('status').style.display = 'block';
+          }).catch(err => {
+            console.error('Harvest failed:', err);
+          });
+
+          location.href = '/home-map.html';
+        } catch (e) {
+          btn.disabled = false;
+          showError('Failed to save: ' + e.message);
+        }
+      });
+
+      // Try geolocation in background
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          currentLat = pos.coords.latitude;
+          currentLng = pos.coords.longitude;
+          map.setCenter([currentLng, currentLat]);
+          marker.setLngLat([currentLng, currentLat]);
+          document.getElementById('labelText').textContent = 'Your location';
+        },
+        () => {
+          document.getElementById('labelText').textContent = 'London (allow location for better accuracy)';
+        }
+      );
+    })();
 
     function showError(msg) {
       const box = document.getElementById('errorBox');
       box.textContent = msg;
       box.style.display = 'block';
     }
-
-    function showStatus(msg) {
-      const status = document.getElementById('status');
-      status.textContent = msg;
-      status.style.display = 'block';
-    }
-
-    // Initialize UI immediately, geolocation in background
-    initializePageUI();
-    initGeolocation();
   </script>
 </body>
 </html>

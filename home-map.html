@@ -407,6 +407,9 @@
         zoom: 14
       });
 
+      // Load featured segment after profile is ready
+      loadFeaturedSegment();
+
       map.on('error', e => console.error('MAPBOX ERROR:', e && e.error));
       map.on('load', () => { map.resize(); loadSegmentsInView(); });
       map.on('idle', loadSegmentsInView);
@@ -502,51 +505,106 @@
       if (!profile) return;
       try {
         const cell = computeCell(profile.home_lat, profile.home_lng);
-        const { data, error } = await window.supabaseClient
+        // Get all approved segments in this cell
+        const { data: allSegs, error } = await window.supabaseClient
           .from('segments').select('*')
           .eq('cell', cell)
-          .eq('hidden', false)
-          .eq('approved', true)
-          .gte('quality', 50)
-          .order('quality', { ascending: false });
-        if (error || !data || data.length === 0) return;
+          .eq('approved', true);
+        if (error || !allSegs || allSegs.length === 0) return;
 
-        const featured = window.AppFeatured.pickForCell(cell, data);
+        // Get today's run counts to rank by quality (runners today)
+        const today = new Date().toISOString().slice(0, 10);
+        const { data: todaysRuns } = await window.supabaseClient
+          .from('runs').select('segment_id')
+          .eq('run_date', today);
+        const runCounts = {};
+        (todaysRuns || []).forEach(r => {
+          runCounts[r.segment_id] = (runCounts[r.segment_id] || 0) + 1;
+        });
+
+        // Sort by quality (runners today, descending) for deterministic pick
+        const ranked = allSegs.sort((a, b) => (runCounts[b.id] || 0) - (runCounts[a.id] || 0));
+        const featured = window.AppFeatured.pickForCell(cell, ranked);
         if (!featured) return;
 
-        const today = new Date().toISOString().slice(0, 10);
-        const { data: runs } = await window.supabaseClient
-          .from('runs').select('*').eq('segment_id', featured.id).eq('run_date', today);
-        const userRuns = runs ? runs.filter(r => r.user_id === (await window.supabaseClient.auth.getUser()).data.user.id) : [];
-        const userBest = userRuns.length > 0 ? Math.min(...userRuns.map(r => r.seconds)) : null;
-        const runnersToday = (runs || []).length;
+        // Get user's best time on this segment (all time, not just today)
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        const { data: userRuns } = await window.supabaseClient
+          .from('runs').select('seconds')
+          .eq('segment_id', featured.id)
+          .eq('user_id', user.id)
+          .order('seconds', { ascending: true });
+        const userBest = (userRuns && userRuns.length > 0) ? userRuns[0].seconds : null;
+
+        // Get runners today for this segment
+        const runnersToday = runCounts[featured.id] || 0;
+
+        // Calculate target time for user's level
+        const targetSeconds = window.AppFeatured.targetTime(featured.length_m, profile.level) * 60;
+        const targetFormatted = window.AppFeatured.formatTime(targetSeconds);
 
         const container = document.getElementById('featuredContainer');
-        container.innerHTML = `
+
+        // Build HTML with all required fields
+        let html = `
           <div class="featured-card">
-            <p class="featured-label">Today</p>
+            <p class="featured-label">Featured Today</p>
             <h3 class="featured-name">${featured.name}</h3>
             <div class="featured-details">
               <div class="featured-detail-item">
                 <div class="label">Distance</div>
                 <div class="value">${(featured.length_m / 1000).toFixed(2)} km</div>
               </div>
+        `;
+
+        // Only show climb if it exists
+        if (featured.climb_m) {
+          html += `
               <div class="featured-detail-item">
                 <div class="label">Climb</div>
-                <div class="value">${featured.climb_m ? featured.climb_m + ' m' : '—'}</div>
+                <div class="value">↑ ${featured.climb_m} m</div>
+              </div>
+          `;
+        }
+
+        html += `
+              <div class="featured-detail-item">
+                <div class="label">Surface</div>
+                <div class="value">${featured.surface || '—'}</div>
               </div>
               <div class="featured-detail-item">
                 <div class="label">Target</div>
-                <div class="value">5:15/km</div>
+                <div class="value">${targetFormatted}</div>
               </div>
+        `;
+
+        // Only show runners if > 0
+        if (runnersToday > 0) {
+          html += `
               <div class="featured-detail-item">
                 <div class="label">Runners</div>
-                <div class="value">${runnersToday || '0'}</div>
+                <div class="value">${runnersToday}</div>
               </div>
+          `;
+        }
+
+        // Only show user best if exists
+        if (userBest) {
+          html += `
+              <div class="featured-detail-item">
+                <div class="label">Your Best</div>
+                <div class="value">${window.AppFeatured.formatTime(userBest)}</div>
+              </div>
+          `;
+        }
+
+        html += `
             </div>
             <button class="featured-btn" id="featuredRunBtn">Run this</button>
           </div>
         `;
+
+        container.innerHTML = html;
         document.getElementById('featuredRunBtn').addEventListener('click', () => {
           location.href = '/recording.html?segment_id=' + featured.id;
         });

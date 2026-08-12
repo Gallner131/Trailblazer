@@ -10,14 +10,15 @@
 
 -- PROFILES: one row per signed-in user
 create table if not exists public.profiles (
-  id            uuid primary key references auth.users(id) on delete cascade,
-  display_name  text not null,
-  level         smallint not null default 1 check (level between 0 and 3),
-  home_lat      double precision,
-  home_lng      double precision,
-  home_label    text,
-  units         text not null default 'metric' check (units in ('metric','imperial')),
-  created_at    timestamptz not null default now()
+  id                     uuid primary key references auth.users(id) on delete cascade,
+  display_name           text not null,
+  level                  smallint not null default 1 check (level between 0 and 3),
+  home_lat               double precision,
+  home_lng               double precision,
+  home_label             text,
+  units                  text not null default 'metric' check (units in ('metric','imperial')),
+  notifications_enabled  boolean not null default true,
+  created_at             timestamptz not null default now()
 );
 
 -- SEGMENTS: harvested from OpenStreetMap, curated, kept permanently

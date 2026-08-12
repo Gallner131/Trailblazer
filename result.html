@@ -9,27 +9,164 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root { --bg: #F3F4F6; --card: #FFF; --ink: #0E1116; --muted: #6E7681; --faint: #9AA1AC; --line: #E7E9ED; --accent: #FF4B12; }
-    * { box-sizing: border-box; }
+    :root {
+      --bg: #F3F4F6; --card: #FFF; --ink: #0E1116; --muted: #6E7681; --faint: #9AA1AC;
+      --line: #E7E9ED; --accent: #FF4B12; --good: #10B981; --warn: #EAB308;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { margin: 0; height: 100%; }
-    body { padding: 24px 16px; background: var(--bg); font-family: Inter, sans-serif; }
-    .time { font-size: 56px; font-weight: 700; font-family: "Inter Tight"; color: var(--ink); text-align: center; margin: 24px 0; }
-    .rank { text-align: center; color: var(--muted); margin: 12px 0; }
-    .stats { background: var(--card); border-radius: 12px; padding: 16px; margin: 16px 0; }
-    .stat { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); }
-    .stat:last-child { border: 0; }
-    .btn { width: 100%; background: var(--accent); color: #fff; border: 0; padding: 14px; border-radius: 12px; font-weight: 700; margin-top: 16px; cursor: pointer; font-size: 16px; }
+    body { padding: 24px 16px 80px; background: var(--bg); font-family: Inter, sans-serif; }
+
+    /* Layout */
+    #content { max-width: 100%; }
+    .time-display { font-size: 56px; font-weight: 700; font-family: "Inter Tight"; color: var(--ink); text-align: center; margin: 24px 0; }
+    .subtitle { text-align: center; color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+    .rank-row { text-align: center; color: var(--muted); margin: 16px 0 20px; }
+
+    /* Card sections */
+    .section { background: var(--card); border-radius: 12px; padding: 16px; margin: 12px 0; }
+    .row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .row:last-child { border: 0; }
+    .row-label { color: var(--muted); font-size: 13px; }
+    .row-value { font-weight: 600; color: var(--ink); font-size: 15px; }
+    .row-value.accent { color: var(--accent); }
+    .row-value.good { color: var(--good); }
+    .row-value.warn { color: var(--warn); }
+
+    /* Collection animation */
+    .collection-area { position: relative; height: 100px; margin: 24px 0; }
+    .collection-card {
+      position: absolute; background: var(--card); border-radius: 12px; padding: 12px;
+      border: 2px solid var(--line); cursor: pointer; min-width: 140px;
+    }
+    .card-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+    .card-time { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    /* Celebration effect */
+    .confetti { position: fixed; pointer-events: none; }
+    .confetti-piece {
+      animation: confetti-fall 3s ease-in forwards;
+      opacity: 1;
+    }
+
+    @keyframes confetti-fall {
+      0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+      100% { transform: translate(var(--tx), 500px) rotate(720deg); opacity: 0; }
+    }
+
+    @keyframes slide-in { 0% { transform: translate(0, 200px); opacity: 0; } 100% { transform: translate(0, 0); opacity: 1; } }
+    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+    @keyframes collect {
+      0% { transform: translate(0, 0) scale(1); opacity: 1; }
+      100% { transform: translate(-120px, -120px) scale(0.5); opacity: 0; }
+    }
+
+    .collecting { animation: collect 0.8s ease-out forwards; }
+    .pulsing { animation: pulse 0.5s ease-out; }
+
+    /* Status badges */
+    .badge {
+      display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+      margin-right: 8px;
+    }
+    .badge-first { background: #DBEAFE; color: #0369A1; }
+    .badge-best { background: #DCFCE7; color: #166534; }
+    .badge-unranked { background: #FEF3C7; color: #78350F; }
+
+    /* Error state */
+    .error-box { background: #FEE2E2; color: #991B1B; padding: 12px; border-radius: 8px; margin: 12px 0; }
+
+    /* Buttons */
+    .btn-group { display: flex; gap: 12px; margin-top: 20px; }
+    .btn { flex: 1; padding: 14px; border-radius: 12px; border: 0; font-weight: 700; font-size: 16px; cursor: pointer; transition: opacity 0.2s; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-secondary { background: var(--line); color: var(--ink); }
+    .btn-share { background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+
+    /* Loading skeleton */
+    .skeleton { background: var(--line); border-radius: 8px; animation: pulse 1.5s infinite; }
+    .skeleton-line { height: 16px; margin: 8px 0; }
+
+    /* Leaderboard peek */
+    .leader-info { background: #FFFBEB; border-left: 3px solid var(--accent); padding: 12px; border-radius: 4px; margin: 12px 0; }
+    .leader-info-label { font-size: 12px; color: var(--muted); }
+    .leader-split { font-size: 14px; font-weight: 600; color: var(--ink); margin-top: 4px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .collecting, .pulsing, @keyframes * { animation: none; }
+    }
   </style>
 </head>
 <body>
   <div id="content">
-    <div class="time" id="time">—</div>
-    <div class="rank" id="rank">—</div>
-    <div class="stats" id="stats">Loading…</div>
-    <button class="btn" onclick="location.href='/home-map.html'">Back to map</button>
+    <div class="time-display" id="timeDisplay">—</div>
+    <div class="subtitle" id="subtitle"></div>
+    <div class="rank-row" id="rankRow">—</div>
+
+    <!-- Segment info -->
+    <div class="section" id="segmentSection" style="display:none;">
+      <div class="row">
+        <span class="row-label">Segment</span>
+        <span class="row-value" id="segmentName">—</span>
+      </div>
+    </div>
+
+    <!-- Target comparison -->
+    <div class="section" id="targetSection" style="display:none;">
+      <div class="row">
+        <span class="row-label">Target for your level</span>
+        <span class="row-value" id="targetTime">—</span>
+      </div>
+      <div class="row">
+        <span class="row-label">Delta vs target</span>
+        <span class="row-value" id="deltaTarget">—</span>
+      </div>
+    </div>
+
+    <!-- Personal best comparison -->
+    <div class="section" id="bestSection" style="display:none;">
+      <div class="row">
+        <span class="row-label">Your personal best</span>
+        <span class="row-value" id="bestTime">—</span>
+      </div>
+      <div class="row">
+        <span class="row-label">Delta vs best</span>
+        <span class="row-value" id="deltaBest">—</span>
+      </div>
+    </div>
+
+    <!-- Collection animation area -->
+    <div id="collectionArea" class="collection-area" style="display:none;"></div>
+
+    <!-- Leader comparison -->
+    <div class="leader-info" id="leaderSection" style="display:none;">
+      <div class="leader-info-label">Split vs leader</div>
+      <div class="leader-split" id="leaderSplit">—</div>
+    </div>
+
+    <!-- Unranked notice -->
+    <div id="unrankedBox" style="display:none;">
+      <div style="background: #FEF3C7; color: #78350F; padding: 12px; border-radius: 8px; font-size: 13px; margin: 12px 0;">
+        <strong>Off-course:</strong> Your run strayed more than 40 m from the route for too long. Not ranked, but time saved locally.
+      </div>
+    </div>
+
+    <!-- Error state -->
+    <div class="error-box" id="errorBox" style="display:none;">
+      <strong id="errorMsg">Failed to post</strong><br>
+      <small id="errorDetail">Check your connection and try again</small>
+    </div>
+
+    <!-- Buttons -->
+    <div class="btn-group">
+      <button class="btn btn-share" id="shareBtn" style="display:none;" onclick="onShare()">Share</button>
+      <button class="btn btn-primary" id="backBtn" onclick="location.href='/home-map.html'">Back to map</button>
+    </div>
+    <button class="btn btn-primary" id="retryBtn" style="display:none; width:100%; margin-top:12px;" onclick="onRetry()">Try again</button>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
   <script src="lib/constants.js"></script>
   <script src="lib/utils.js"></script>
   <script src="lib/auth.js"></script>
@@ -40,45 +177,256 @@
       { n: 'Quick', pace: 255 },
       { n: 'Elite', pace: 205 }
     ];
+
     const targetFor = (lvl, metres) => {
       const km = metres / 1000;
       return LEVELS[lvl].pace * km * (1 - 0.22 * Math.max(0, 1 - km));
     };
 
+    let state = { user: null, profile: null, seg: null, run: null, isFirstTime: false, isNewBest: false, ranked: true };
     const params = new URLSearchParams(location.search);
     const segmentId = Number(params.get('segment_id'));
     const today = new Date().toISOString().slice(0, 10);
 
-    (async () => {
-      const { data: { user } } = await window.supabaseClient.auth.getUser();
-      if (!user) { location.href = '/section-2-auth.html'; return; }
+    async function init() {
+      try {
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        if (!user) { location.href = '/section-2-auth.html'; return; }
+        state.user = user;
 
-      const { data: profile } = await window.supabaseClient.from('profiles').select('*').eq('id', user.id).single();
-      const { data: seg } = await window.supabaseClient.from('segments').select('*').eq('id', segmentId).single();
-      const { data: board } = await window.supabaseClient.from('runs').select('seconds,user_id,level').eq('segment_id', segmentId).order('seconds', { ascending: true });
-      const { data: history } = await window.supabaseClient.from('runs').select('seconds,run_date').eq('segment_id', segmentId).eq('user_id', user.id).order('seconds', { ascending: true });
+        showState('posting');
 
-      const mine = (board || []).find(r => r.user_id === user.id);
-      const sameLevel = (board || []).filter(r => r.level === (profile?.level || 0));
-      const rank = mine ? sameLevel.findIndex(r => r.user_id === user.id) + 1 : 0;
+        // Fetch all data in parallel
+        const [profileRes, segRes, boardRes, historyRes] = await Promise.all([
+          window.supabaseClient.from('profiles').select('*').eq('id', user.id).single(),
+          window.supabaseClient.from('segments').select('*').eq('id', segmentId).single(),
+          window.supabaseClient.from('runs').select('seconds,user_id,level,ranked').eq('segment_id', segmentId).eq('run_date', today).order('seconds', { ascending: true }),
+          window.supabaseClient.from('runs').select('seconds,run_date').eq('segment_id', segmentId).eq('user_id', user.id).order('run_date', { ascending: false })
+        ]);
 
-      const isNewBest = history && history[0] && history[0].run_date === today;
-      const target = targetFor(profile?.level || 0, seg?.length_m || 0);
-      const delta = mine ? mine.seconds - target : 0;
+        if (profileRes.error || !profileRes.data) throw new Error('Profile not found');
+        if (segRes.error || !segRes.data) throw new Error('Segment not found');
 
-      if (mine) {
-        document.getElementById('time').textContent = window.AppUtils.mmss(mine.seconds);
-        document.getElementById('rank').textContent = rank + ' of ' + sameLevel.length + ' • ' + (delta > 0 ? '+' : '') + Math.round(delta) + 's vs target';
+        state.profile = profileRes.data;
+        state.seg = segRes.data;
 
-        let html = '<div class="stat"><strong>Segment</strong><span>' + (seg?.name || 'Segment') + '</span></div>';
-        html += '<div class="stat"><strong>Your time</strong><span>' + window.AppUtils.mmss(mine.seconds) + '</span></div>';
-        if (isNewBest) html += '<div class="stat"><strong>Status</strong><span style="color:var(--accent);">New best!</span></div>';
-        if (history && history.length > 1) html += '<div class="stat"><strong>Your best</strong><span>' + window.AppUtils.mmss(history[0].seconds) + '</span></div>';
-        document.getElementById('stats').innerHTML = html;
-      } else {
-        document.getElementById('content').innerHTML = '<div style="text-align:center;padding:48px 16px;color:var(--muted);">Run not found</div>';
+        // Find the current user's run (most recent)
+        const board = boardRes.data || [];
+        const mine = board.find(r => r.user_id === user.id);
+        if (!mine) throw new Error('Run not found');
+
+        // Check if first time on this segment
+        const previousRuns = (historyRes.data || []).filter(r => r.run_date < today);
+        state.isFirstTime = previousRuns.length === 0;
+
+        // Check if new best
+        state.isNewBest = !previousRuns.length || mine.seconds < previousRuns[0].seconds;
+        state.ranked = mine.ranked !== false;
+        state.run = mine;
+
+        // Render the result
+        renderResult(board);
+
+        // If first time, show collection animation after a delay
+        if (state.isFirstTime) {
+          setTimeout(() => showCollectionAnimation(), 400);
+        }
+
+      } catch (e) {
+        showError(e.message);
       }
-    })();
+    }
+
+    function renderResult(board) {
+      const sameLevel = board.filter(r => r.level === (state.profile?.level || 0) && r.ranked);
+      const rank = state.ranked ? sameLevel.findIndex(r => r.user_id === state.user.id) + 1 : 0;
+      const leader = sameLevel[0];
+
+      // Time display
+      document.getElementById('timeDisplay').textContent = window.AppUtils.mmss(state.run.seconds);
+
+      // Subtitle with status
+      let subtitle = '';
+      if (state.isFirstTime) {
+        subtitle = 'First time on this segment!';
+      } else if (state.isNewBest) {
+        subtitle = 'New personal best!';
+      } else {
+        const prev = (JSON.parse(localStorage.getItem('lastRun:' + segmentId) || 'null')) || {};
+        const diff = Math.round(state.run.seconds - prev.seconds);
+        if (diff > 0) {
+          subtitle = 'Slower than last time by ' + Math.round(diff) + 's';
+        } else {
+          subtitle = 'Faster than last time!';
+        }
+      }
+      document.getElementById('subtitle').textContent = subtitle;
+
+      // Rank display
+      if (state.ranked) {
+        document.getElementById('rankRow').textContent = '#' + rank + ' of ' + sameLevel.length + ' on ' + LEVELS[state.profile.level].n + ' board today';
+      } else {
+        document.getElementById('rankRow').textContent = 'Unranked • Off-course';
+      }
+
+      // Segment section
+      const segSection = document.getElementById('segmentSection');
+      document.getElementById('segmentName').textContent = state.seg.name;
+      segSection.style.display = 'block';
+
+      // Target section
+      const target = targetFor(state.profile.level, state.seg.length_m);
+      const deltaTarget = state.run.seconds - target;
+      document.getElementById('targetTime').textContent = window.AppUtils.mmss(target);
+      document.getElementById('deltaTarget').innerHTML = deltaTargetHtml(deltaTarget);
+      document.getElementById('targetSection').style.display = 'block';
+
+      // Best section - show if not first time
+      if (!state.isFirstTime) {
+        const prevRuns = [];
+        for (const run of board) {
+          if (run.user_id === state.user.id && run.run_date < today) {
+            prevRuns.push(run.seconds);
+          }
+        }
+        // Get personal best from all historical runs on this segment
+        window.supabaseClient.from('runs')
+          .select('seconds')
+          .eq('segment_id', segmentId)
+          .eq('user_id', state.user.id)
+          .order('seconds', { ascending: true })
+          .limit(1)
+          .then(res => {
+            if (res.data && res.data.length > 0) {
+              const best = res.data[0].seconds;
+              const deltaBest = state.run.seconds - best;
+              document.getElementById('bestTime').textContent = window.AppUtils.mmss(best);
+              document.getElementById('deltaBest').innerHTML = deltaBestHtml(deltaBest);
+              document.getElementById('bestSection').style.display = 'block';
+            }
+          });
+      }
+
+      // Leader section - show if ranked and there's a leader
+      if (state.ranked && leader && leader.user_id !== state.user.id) {
+        const split = state.run.seconds - leader.seconds;
+        const splitText = split > 0 ? '+' + Math.round(split * 10) / 10 + 's behind' : '🏆 You\'re leading!';
+        document.getElementById('leaderSplit').textContent = splitText;
+        document.getElementById('leaderSection').style.display = 'block';
+      }
+
+      // Unranked box
+      if (!state.ranked) {
+        document.getElementById('unrankedBox').style.display = 'block';
+      }
+
+      // Share button
+      if (state.ranked) {
+        document.getElementById('shareBtn').style.display = 'block';
+      }
+
+      // Save current run for next comparison
+      localStorage.setItem('lastRun:' + segmentId, JSON.stringify({ seconds: state.run.seconds, date: today }));
+    }
+
+    function deltaTargetHtml(delta) {
+      const sign = delta > 0 ? '+' : '';
+      const cls = delta < 0 ? 'good' : 'warn';
+      return '<span class="' + cls + '">' + sign + Math.round(delta * 10) / 10 + 's</span>';
+    }
+
+    function deltaBestHtml(delta) {
+      if (delta === 0) return '<span class="good">Personal best!</span>';
+      if (delta < 0) return '<span class="good">+' + Math.round(Math.abs(delta) * 10) / 10 + 's faster!</span>';
+      return '<span class="warn">+' + Math.round(delta * 10) / 10 + 's slower</span>';
+    }
+
+    function showState(state) {
+      // For now just use 'posting' briefly then show results
+      if (state === 'posting') {
+        document.getElementById('timeDisplay').style.opacity = '0.5';
+      }
+    }
+
+    function showCollectionAnimation() {
+      const area = document.getElementById('collectionArea');
+      area.style.display = 'block';
+
+      // Create the segment card
+      const card = document.createElement('div');
+      card.className = 'collection-card';
+      card.style.left = '50%';
+      card.style.top = '20px';
+      card.style.transform = 'translateX(-50%)';
+      card.innerHTML = '<div class="card-name">' + state.seg.name + '</div><div class="card-time">' + window.AppUtils.mmss(state.run.seconds) + '</div>';
+
+      area.appendChild(card);
+
+      // Trigger animation
+      setTimeout(() => {
+        card.classList.add('collecting');
+      }, 100);
+
+      // Show confetti
+      createConfetti(card.getBoundingClientRect());
+
+      // Show collection celebration
+      setTimeout(() => {
+        card.remove();
+        // Create a visual feedback that it was collected
+        const collected = document.createElement('div');
+        collected.style.textAlign = 'center';
+        collected.style.padding = '20px';
+        collected.style.fontSize = '48px';
+        collected.innerHTML = '✓ Added to your collection';
+        area.replaceWith(collected);
+      }, 800);
+    }
+
+    function createConfetti(rect) {
+      const count = 20;
+      for (let i = 0; i < count; i++) {
+        const piece = document.createElement('div');
+        piece.className = 'confetti confetti-piece';
+        piece.style.left = (rect.left + rect.width / 2) + 'px';
+        piece.style.top = (rect.top + rect.height / 2) + 'px';
+        piece.style.width = (3 + Math.random() * 4) + 'px';
+        piece.style.height = (3 + Math.random() * 4) + 'px';
+        piece.style.background = ['#FF4B12', '#FFA500', '#FFD700', '#FF6B6B'][Math.floor(Math.random() * 4)];
+        piece.style.borderRadius = '50%';
+        const tx = (Math.random() - 0.5) * 300;
+        const ty = (Math.random() - 0.5) * 300;
+        piece.style.setProperty('--tx', tx + 'px');
+        piece.style.setProperty('--ty', ty + 'px');
+        document.body.appendChild(piece);
+        setTimeout(() => piece.remove(), 3000);
+      }
+    }
+
+    function showError(msg) {
+      document.getElementById('errorBox').style.display = 'block';
+      document.getElementById('errorMsg').textContent = msg;
+      document.getElementById('retryBtn').style.display = 'block';
+      document.getElementById('content').style.opacity = '0.5';
+    }
+
+    function onShare() {
+      if (!state.seg || !state.run) return;
+      const text = 'I just ran ' + state.seg.name + ' in ' + window.AppUtils.mmss(state.run.seconds) + ' on Trailblazer!';
+      if (navigator.share) {
+        navigator.share({ title: 'Trailblazer', text: text });
+      } else {
+        // Fallback: copy to clipboard
+        navigator.clipboard.writeText(text);
+        alert('Copied to clipboard!');
+      }
+    }
+
+    function onRetry() {
+      location.reload();
+    }
+
+    init();
   </script>
 </body>
 </html>

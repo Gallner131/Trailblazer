@@ -480,27 +480,36 @@
     }
 
     function renderContent() {
+      if (!segment) {
+        sheetBody.innerHTML = `
+          <div class="error-box">
+            Failed to load segment. Please go back and try again.
+          </div>
+        `;
+        return;
+      }
+
       const isEmpty = board.length === 0;
 
       let html = `
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-top: 12px;">
-          <div class="seg-name" style="margin: 0; flex: 1;">${segment?.name || 'Segment'}</div>
+          <div class="seg-name" style="margin: 0; flex: 1;">${segment.name}</div>
           <button id="shareBtn" style="flex: 0 0 auto; margin: 0; padding: 8px 12px; font-size: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; cursor: pointer;">Share</button>
         </div>
-        <div class="seg-location">${segment?.highway || 'Road'}</div>
+        <div class="seg-location">${segment.highway || 'Road'}</div>
 
         <div class="facts">
           <div class="fact">
             <div class="fact-label">Distance</div>
-            <div class="fact-value">${segment ? (segment.length_m / 1000).toFixed(1) : '1.2'} km</div>
+            <div class="fact-value">${(segment.length_m / 1000).toFixed(1)} km</div>
           </div>
           <div class="fact">
             <div class="fact-label">Climb</div>
-            <div class="fact-value">${segment?.climb_m || 0} m</div>
+            <div class="fact-value">${segment.climb_m || 0} m</div>
           </div>
           <div class="fact">
             <div class="fact-label">Surface</div>
-            <div class="fact-value">${segment?.surface || 'Tarmac'}</div>
+            <div class="fact-value">${segment.surface || 'Tarmac'}</div>
           </div>
         </div>
 

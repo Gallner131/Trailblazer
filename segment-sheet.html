@@ -298,6 +298,11 @@
   <script>
     // Segment Sheet Logic
     let userId;
+    let hasReportedSegment = false;
+    const reportModal = document.getElementById('reportModal');
+    const reportCancel = document.getElementById('reportCancel');
+    const reportSubmit = document.getElementById('reportSubmit');
+    const reportMessage = document.getElementById('reportMessage');
 
     // Get current user session
     window.supabaseClient.auth.getSession().then(({ data: { session } }) => {
@@ -305,6 +310,7 @@
         window.location.href = '/section-2-auth.html';
       } else {
         userId = session.user.id;
+        checkUserReports();
         loadSegment();
       }
     });
@@ -320,6 +326,12 @@
       }
     }
 
+    // Check if user has already reported this segment
+    async function checkUserReports() {
+      const has = await window.AppAPI.hasUserReportedSegment(segmentId, userId);
+      hasReportedSegment = has;
+    }
+
     // Get segment ID from query param
     const urlParams = new URLSearchParams(window.location.search);
     const segmentId = urlParams.get('segment_id');
@@ -333,7 +345,9 @@
 
     // Toggle expanded/collapsed
     let isExpanded = false;
-    sheet.addEventListener('click', () => {
+    sheet.addEventListener('click', (e) => {
+      // Don't toggle if clicking on buttons
+      if (e.target.closest('.btn, .btn-secondary')) return;
       isExpanded = !isExpanded;
       sheet.classList.toggle('expanded');
       sheet.classList.toggle('collapsed');
@@ -341,7 +355,11 @@
 
     // Load segment and board
     async function loadSegment() {
-      // Get board for today
+      const { data: segmentData, error: segError } = await window.AppAPI.getSegment(segmentId);
+      if (!segError && segmentData) {
+        segment = segmentData;
+      }
+
       const { data: boardData, error: boardError } = await window.AppAPI.getSegmentBoardToday(segmentId, currentLevel);
       if (!boardError && boardData) {
         board = boardData;
@@ -355,21 +373,24 @@
       const isEmpty = board.length === 0;
 
       let html = `
-        <div class="seg-name">Test Segment</div>
-        <div class="seg-location">Main Street</div>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <div class="seg-name" style="margin: 12px 0 3px; flex: 1;">${segment?.name || 'Segment'}</div>
+          <button class="btn-secondary" id="shareBtn" style="flex: 0 0 auto; margin: 0; padding: 8px 12px; font-size: 12px;">Share</button>
+        </div>
+        <div class="seg-location">${segment?.highway || 'Road'}</div>
 
         <div class="facts">
           <div class="fact">
             <div class="fact-label">Distance</div>
-            <div class="fact-value">1.2 km</div>
+            <div class="fact-value">${segment ? (segment.length_m / 1000).toFixed(1) : '1.2'} km</div>
           </div>
           <div class="fact">
             <div class="fact-label">Climb</div>
-            <div class="fact-value">45 m</div>
+            <div class="fact-value">${segment?.climb_m || 0} m</div>
           </div>
           <div class="fact">
             <div class="fact-label">Surface</div>
-            <div class="fact-value">Tarmac</div>
+            <div class="fact-value">${segment?.surface || 'Tarmac'}</div>
           </div>
         </div>
 
@@ -411,7 +432,10 @@
       html += `
         </div>
 
-        <button class="btn" id="runBtn">Run this</button>
+        <div class="action-buttons">
+          <button class="btn" id="runBtn" style="flex: 1;">Run this</button>
+          <button class="btn-secondary" id="reportBtn" style="flex: 0 0 auto; padding: 14px 12px;">⚠</button>
+        </div>
       `;
 
       sheetContent.innerHTML = html;
@@ -419,6 +443,20 @@
       // Event listeners
       document.getElementById('runBtn').addEventListener('click', () => {
         window.location.href = '/recording.html?segment_id=' + segmentId;
+      });
+
+      document.getElementById('shareBtn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await handleShare();
+      });
+
+      document.getElementById('reportBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (hasReportedSegment) {
+          alert('You have already reported this segment.');
+        } else {
+          openReportModal();
+        }
       });
 
       document.querySelectorAll('.level-btn').forEach(btn => {
@@ -436,6 +474,82 @@
         });
       });
     }
+
+    // Report Modal Functions
+    function openReportModal() {
+      reportModal.classList.add('active');
+      reportMessage.innerHTML = '';
+      document.querySelectorAll('input[name="report-reason"]').forEach(r => r.checked = false);
+    }
+
+    function closeReportModal() {
+      reportModal.classList.remove('active');
+      reportMessage.innerHTML = '';
+      document.querySelectorAll('input[name="report-reason"]').forEach(r => r.checked = false);
+    }
+
+    reportCancel.addEventListener('click', closeReportModal);
+
+    // Enable submit button when reason is selected
+    document.querySelectorAll('input[name="report-reason"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        reportSubmit.disabled = false;
+      });
+    });
+
+    reportSubmit.addEventListener('click', async () => {
+      const reason = document.querySelector('input[name="report-reason"]:checked')?.value;
+      if (!reason) return;
+
+      reportSubmit.disabled = true;
+      try {
+        const { error } = await window.AppAPI.submitSegmentReport(segmentId, userId, reason);
+        if (error) {
+          reportMessage.innerHTML = '<div class="error-box">Failed to submit report. Please try again.</div>';
+          reportSubmit.disabled = false;
+        } else {
+          reportMessage.innerHTML = '<div class="success-box">Thank you for your report. This helps us keep Trailblazer safe.</div>';
+          hasReportedSegment = true;
+          setTimeout(() => closeReportModal(), 2000);
+        }
+      } catch (err) {
+        reportMessage.innerHTML = '<div class="error-box">Error: ' + err.message + '</div>';
+        reportSubmit.disabled = false;
+      }
+    });
+
+    // Sharing Functions
+    async function handleShare() {
+      if (!segment) return;
+
+      try {
+        const shareText = `I ran ${segment.name}!`;
+        const shareLink = `${window.location.origin}/public-segment.html?segment_id=${segmentId}`;
+
+        if (navigator.share) {
+          await navigator.share({
+            title: 'Trailblazer',
+            text: shareText,
+            url: shareLink
+          });
+        } else {
+          // Fallback to copy link
+          await navigator.clipboard.writeText(shareLink);
+          alert('Link copied to clipboard!');
+        }
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          console.error('Share failed:', error);
+        }
+      }
+    }
+
+    // Click outside modal to close
+    reportModal.addEventListener('click', (e) => {
+      if (e.target === reportModal) {
+        closeReportModal();
+      }
+    });
   </script>
 </body>
 </html>

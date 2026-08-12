@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Trailblazer — Public Segment</title>
+  <meta name="theme-color" content="#FF4B12">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F3F4F6;
+      --card: #FFF;
+      --ink: #0E1116;
+      --muted: #6E7681;
+      --faint: #9AA1AC;
+      --line: #E7E9ED;
+      --accent: #FF4B12;
+      --sh: 0 1px 2px rgba(14,17,22,.05), 0 10px 28px -18px rgba(14,17,22,.35);
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+    body {
+      background: var(--bg);
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+    .container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .header {
+      background: var(--card);
+      padding: 16px;
+      box-shadow: var(--sh);
+      z-index: 10;
+    }
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 0;
+      margin-bottom: 8px;
+    }
+    .seg-title {
+      font-family: "Inter Tight";
+      font-weight: 800;
+      font-size: 24px;
+      margin: 0;
+      line-height: 1.1;
+    }
+    .seg-subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 4px 0 0;
+    }
+    .map-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+    .footer {
+      background: var(--card);
+      padding: 16px;
+      box-shadow: 0 -10px 30px -10px rgba(14,17,22,.2);
+      max-height: 40vh;
+      overflow-y: auto;
+      border-top: 1px solid var(--line);
+    }
+    .facts {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .fact {
+      text-align: center;
+      padding: 12px;
+      background: var(--bg);
+      border-radius: 10px;
+    }
+    .fact-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: var(--faint);
+      margin-bottom: 4px;
+    }
+    .fact-value {
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 16px;
+    }
+    .board-section {
+      margin-top: 16px;
+    }
+    .board-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+    .board-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 4px;
+      background: var(--bg);
+    }
+    .rank {
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--faint);
+      width: 24px;
+      text-align: center;
+      flex: none;
+    }
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--ink);
+      color: var(--card);
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex: none;
+    }
+    .runner-name {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .runner-time {
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 13px;
+      flex: none;
+    }
+    .empty-state {
+      padding: 24px 0;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .cta-button {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #fff;
+      font-family: "Inter Tight";
+      font-weight: 700;
+      font-size: 16px;
+      padding: 14px;
+      cursor: pointer;
+      box-shadow: 0 6px 18px -8px rgba(255,75,18,.9);
+      margin-top: 12px;
+    }
+    .cta-button:active {
+      transform: translateY(1px);
+    }
+    .error-box {
+      background: #FFF1EC;
+      border: 1px solid #FFD9CB;
+      color: #8C2C0E;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 12px;
+      margin: 12px 0;
+      text-align: center;
+    }
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <button class="back-btn" id="backBtn">← Back to map</button>
+      <h1 class="seg-title" id="segTitle">Loading…</h1>
+      <p class="seg-subtitle" id="segSubtitle">Loading…</p>
+    </div>
+
+    <div class="map-container">
+      <div id="map" style="display: none;"></div>
+      <div id="mapLoading" class="loading">Loading map…</div>
+    </div>
+
+    <div class="footer">
+      <div class="facts" id="facts">
+        <div class="fact">
+          <div class="fact-label">Distance</div>
+          <div class="fact-value" id="factDistance">—</div>
+        </div>
+        <div class="fact">
+          <div class="fact-label">Climb</div>
+          <div class="fact-value" id="factClimb">—</div>
+        </div>
+        <div class="fact">
+          <div class="fact-label">Surface</div>
+          <div class="fact-value" id="factSurface">—</div>
+        </div>
+      </div>
+
+      <div class="board-section">
+        <div class="board-title">Today's leaderboard</div>
+        <div id="board">
+          <div class="empty-state">Loading…</div>
+        </div>
+      </div>
+
+      <button class="cta-button" id="getAppBtn">Get Trailblazer</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+  <script src="lib/constants.js"></script>
+  <script src="lib/utils.js"></script>
+  <script src="lib/api.js"></script>
+  <script>
+    // Public Segment Page - no authentication required
+    const urlParams = new URLSearchParams(window.location.search);
+    const segmentId = urlParams.get('segment_id');
+
+    if (!segmentId) {
+      document.body.innerHTML = '<div class="error-box" style="margin: 40px 16px;">No segment specified</div>';
+    } else {
+      loadPublicSegment();
+    }
+
+    async function loadPublicSegment() {
+      try {
+        // Fetch segment data
+        const { data: segment, error: segError } = await window.AppAPI.getSegment(segmentId);
+        if (segError || !segment) {
+          showError('Segment not found');
+          return;
+        }
+
+        // Update header
+        document.getElementById('segTitle').textContent = segment.name;
+        document.getElementById('segSubtitle').textContent = segment.highway || 'Road';
+
+        // Update facts
+        document.getElementById('factDistance').textContent = (segment.length_m / 1000).toFixed(1) + ' km';
+        document.getElementById('factClimb').textContent = (segment.climb_m || 0) + ' m';
+        document.getElementById('factSurface').textContent = segment.surface || '—';
+
+        // Initialize map
+        initMap(segment);
+
+        // Load leaderboard
+        loadLeaderboard(segmentId);
+      } catch (error) {
+        console.error('Load error:', error);
+        showError('Failed to load segment');
+      }
+    }
+
+    function showError(message) {
+      const footer = document.querySelector('.footer');
+      footer.innerHTML = `<div class="error-box">${message}</div>`;
+    }
+
+    function initMap(segment) {
+      mapboxgl.accessToken = window.AppConstants.MAPBOX_TOKEN;
+
+      const map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: [segment.centre_lng, segment.centre_lat],
+        zoom: 14,
+        pitch: 0,
+        bearing: 0
+      });
+
+      map.on('load', () => {
+        // Add segment path as a GeoJSON feature
+        const geojsonFeature = {
+          type: 'Feature',
+          geometry: {
+            type: 'LineString',
+            coordinates: segment.geom.map(([lat, lng]) => [lng, lat])
+          }
+        };
+
+        map.addSource('segment', {
+          type: 'geojson',
+          data: geojsonFeature
+        });
+
+        map.addLayer({
+          id: 'segment-line',
+          type: 'line',
+          source: 'segment',
+          paint: {
+            'line-color': '#FF4B12',
+            'line-width': 4,
+            'line-opacity': 0.8
+          }
+        });
+
+        // Add start marker
+        new mapboxgl.Marker({ color: '#FF4B12' })
+          .setLngLat([segment.start_lng, segment.start_lat])
+          .setPopup(new mapboxgl.Popup().setText('Start'))
+          .addTo(map);
+
+        // Add end marker
+        new mapboxgl.Marker({ color: '#FF4B12' })
+          .setLngLat([segment.end_lng, segment.end_lat])
+          .setPopup(new mapboxgl.Popup().setText('Finish'))
+          .addTo(map);
+
+        // Fit bounds
+        const bounds = new mapboxgl.LngLatBounds();
+        segment.geom.forEach(([lat, lng]) => {
+          bounds.extend([lng, lat]);
+        });
+        map.fitBounds(bounds, { padding: 40 });
+
+        // Show map, hide loading
+        document.getElementById('mapLoading').style.display = 'none';
+        document.getElementById('map').style.display = 'block';
+      });
+
+      map.on('error', (e) => {
+        console.error('Map error:', e);
+        showError('Failed to load map');
+      });
+    }
+
+    async function loadLeaderboard(segmentId) {
+      try {
+        const { data: board, error } = await window.AppAPI.getSegmentBoardToday(segmentId);
+
+        if (error || !board) {
+          document.getElementById('board').innerHTML = '<div class="empty-state">Nobody has run this today. Be first!</div>';
+          return;
+        }
+
+        if (board.length === 0) {
+          document.getElementById('board').innerHTML = '<div class="empty-state">Nobody has run this today. Be first!</div>';
+          return;
+        }
+
+        let html = '';
+        board.forEach((run, idx) => {
+          html += `
+            <div class="board-row">
+              <div class="rank">${idx + 1}</div>
+              <div class="avatar">${window.AppUtils.getInitials(run.profiles?.display_name || 'Runner')}</div>
+              <div class="runner-name">${run.profiles?.display_name || 'Runner'}</div>
+              <div class="runner-time">${window.AppUtils.formatTime(run.seconds)}</div>
+            </div>
+          `;
+        });
+
+        document.getElementById('board').innerHTML = html;
+      } catch (error) {
+        console.error('Leaderboard error:', error);
+        document.getElementById('board').innerHTML = '<div class="empty-state">Failed to load leaderboard</div>';
+      }
+    }
+
+    // Back button
+    document.getElementById('backBtn').addEventListener('click', () => {
+      window.history.back();
+    });
+
+    // Get app button - redirect to sign-up
+    document.getElementById('getAppBtn').addEventListener('click', () => {
+      window.location.href = '/section-2-auth.html';
+    });
+  </script>
+</body>
+</html>

@@ -492,10 +492,114 @@
       () => location.href = '/profile.html');
     document.getElementById('tabMap').addEventListener('click', () => {});
 
-    let map = null, markers = [], profile = null;
+    let map = null, markers = [], profile = null, allSegments = [];
 
     document.getElementById('locateBtn').addEventListener('click', () => {
       if (map && profile) map.flyTo({ center: [profile.home_lng, profile.home_lat], zoom: 15 });
+    });
+
+    /* Search functionality */
+    const searchToggleBtn = document.getElementById('searchToggleBtn');
+    const searchContainer = document.getElementById('searchContainer');
+    const searchOverlay = document.getElementById('searchOverlay');
+    const searchField = document.getElementById('searchField');
+    const searchResults = document.getElementById('searchResults');
+    let searchTimeout;
+
+    searchToggleBtn.addEventListener('click', () => {
+      searchContainer.classList.toggle('active');
+      searchOverlay.classList.toggle('active');
+      if (searchContainer.classList.contains('active')) {
+        searchToggleBtn.classList.add('hide');
+        searchField.focus();
+      } else {
+        searchToggleBtn.classList.remove('hide');
+        searchField.value = '';
+        searchResults.style.display = 'none';
+      }
+    });
+
+    searchOverlay.addEventListener('click', () => {
+      searchContainer.classList.remove('active');
+      searchOverlay.classList.remove('active');
+      searchToggleBtn.classList.remove('hide');
+      searchField.value = '';
+      searchResults.style.display = 'none';
+    });
+
+    searchField.addEventListener('input', async (e) => {
+      const query = e.target.value.trim();
+      clearTimeout(searchTimeout);
+
+      if (query.length < 1) {
+        searchResults.style.display = 'none';
+        return;
+      }
+
+      searchTimeout = setTimeout(async () => {
+        const results = await window.AppSearch.combinedSearch(
+          allSegments,
+          query,
+          { proximity: map ? [map.getCenter().lng, map.getCenter().lat] : null, limit: 10 }
+        );
+
+        let html = '';
+        if (results.segments.length === 0 && results.places.length === 0) {
+          html = '<div class="search-result-empty">No results found</div>';
+        } else {
+          results.segments.forEach(seg => {
+            html += `
+              <div class="search-result-item segment" data-segment-id="${seg.id}">
+                ${seg.name}
+                <div style="font-size: 11px; color: var(--muted); font-weight: normal;">
+                  ${(seg.length_m / 1000).toFixed(1)} km
+                </div>
+              </div>
+            `;
+          });
+          results.places.forEach(place => {
+            html += `
+              <div class="search-result-item place" data-lat="${place.lat}" data-lng="${place.lng}">
+                ${place.name}
+              </div>
+            `;
+          });
+        }
+
+        searchResults.innerHTML = html;
+        searchResults.style.display = 'block';
+
+        // Add event listeners to results
+        document.querySelectorAll('.search-result-item.segment').forEach(item => {
+          item.addEventListener('click', () => {
+            const segId = item.dataset.segmentId;
+            const seg = allSegments.find(s => s.id === parseInt(segId));
+            if (seg) {
+              openSheet(seg);
+              searchContainer.classList.remove('active');
+              searchOverlay.classList.remove('active');
+              searchToggleBtn.classList.remove('hide');
+              searchField.value = '';
+              searchResults.style.display = 'none';
+            }
+          });
+        });
+
+        document.querySelectorAll('.search-result-item.place').forEach(item => {
+          item.addEventListener('click', () => {
+            const lat = parseFloat(item.dataset.lat);
+            const lng = parseFloat(item.dataset.lng);
+            if (map) {
+              map.flyTo({ center: [lng, lat], zoom: 15 });
+              searchContainer.classList.remove('active');
+              searchOverlay.classList.remove('active');
+              searchToggleBtn.classList.remove('hide');
+              searchField.value = '';
+              searchResults.style.display = 'none';
+            }
+          });
+        });
+      }, 300);
     });
 
     /* ---------- 2. THEN load data and create the map ---------- */
@@ -545,6 +649,9 @@
           .gte('centre_lng', b.getWest()).lte('centre_lng', b.getEast())
           .limit(200);
         if (error) throw new Error('Segments: ' + error.message);
+
+        // Store segments for search
+        allSegments = data || [];
 
         const today = new Date().toISOString().slice(0, 10);
         const { data: runs, error: runsError } = await window.supabaseClient

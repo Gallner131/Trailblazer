@@ -94,6 +94,7 @@
     (async () => {
       const { data: { user } } = await window.supabaseClient.auth.getUser();
       if (!user) { location.href = '/section-2-auth.html'; return; }
+      currentUserId = user.id;
 
       const { data: profile } = await window.supabaseClient.from('profiles').select('*').eq('id', user.id).single();
       const { data: runs } = await window.supabaseClient.from('runs').select('*').eq('user_id', user.id);
@@ -138,9 +139,11 @@
       document.getElementById('history').innerHTML = html || '<p style="color: var(--muted); text-align: center;">No runs yet</p>';
     })();
 
+    let currentUserId = null;
+
     function updateLevel() {
       const lvl = Number(document.getElementById('levelSelect').value);
-      window.supabaseClient.from('profiles').update({ level: lvl }).eq('id', window.supabaseClient.auth.user().id).then(() => location.reload());
+      window.supabaseClient.from('profiles').update({ level: lvl }).eq('id', currentUserId).then(() => location.reload());
     }
 
     function signOut() {
@@ -148,17 +151,23 @@
     }
 
     function deleteAccountStep1() {
-      if (confirm('Permanently delete your account and all data? This cannot be undone.')) {
+      if (confirm('Permanently delete your account and all data?\nThis cannot be undone.')) {
         deleteAccountStep2();
       }
     }
 
     async function deleteAccountStep2() {
-      const { data: { user } } = await window.supabaseClient.auth.getUser();
-      await window.supabaseClient.from('runs').delete().eq('user_id', user.id);
-      await window.supabaseClient.from('profiles').delete().eq('id', user.id);
-      await window.supabaseClient.auth.admin.deleteUser(user.id);
-      location.href = '/section-2-auth.html';
+      if (confirm('Are you sure? This is permanent.')) {
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        try {
+          await window.supabaseClient.from('runs').delete().eq('user_id', user.id);
+          await window.supabaseClient.from('profiles').delete().eq('id', user.id);
+          await window.supabaseClient.auth.signOut();
+          location.href = '/section-2-auth.html';
+        } catch (e) {
+          alert('Delete failed: ' + e.message);
+        }
+      }
     }
   </script>
 </body>

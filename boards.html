@@ -64,19 +64,64 @@
       const { data: { user } } = await window.supabaseClient.auth.getUser();
       if (!user) { location.href = '/section-2-auth.html'; return; }
 
-      const { data: runs } = await window.supabaseClient.from('runs').select('*').eq('user_id', user.id);
-      const { data: all } = await window.supabaseClient.from('runs').select('*').order('created_at', { ascending: false });
+      const { data: userRuns } = await window.supabaseClient.from('runs').select('*').eq('user_id', user.id);
+      const { data: allRuns } = await window.supabaseClient.from('runs').select('segment_id,seconds,user_id,profiles(display_name)').order('created_at', { ascending: false });
 
-      let html = '<div class="empty">No runs yet today</div>';
-      if (all && all.length > 0) {
-        html = '';
-        all.slice(0, 100).forEach((r, i) => {
-          html += '<div class="row"><div class="rank">' + (i+1) + '</div><div class="name">Runner</div><div class="metric">' + window.AppUtils.mmss(r.seconds) + '</div></div>';
+      // TODAY - runs from today
+      const today = new Date().toISOString().slice(0, 10);
+      const todayRuns = (allRuns || []).filter(r => r.created_at && r.created_at.startsWith(today)).slice(0, 100);
+      let todayHtml = '<div class="empty">No runs yet today</div>';
+      if (todayRuns.length > 0) {
+        todayHtml = '';
+        todayRuns.forEach((r, i) => {
+          todayHtml += '<div class="row"><div class="rank">' + (i+1) + '</div><div class="name">' + (r.profiles?.display_name || 'Runner') + '</div><div class="metric">' + window.AppUtils.mmss(r.seconds) + '</div></div>';
         });
       }
-      document.getElementById('today').innerHTML = html;
-      document.getElementById('collectors').innerHTML = '<div class="empty">Collectors board coming soon</div>';
-      document.getElementById('streaks').innerHTML = '<div class="empty">Streaks board coming soon</div>';
+      document.getElementById('today').innerHTML = todayHtml;
+
+      // COLLECTORS - distinct segments per user
+      const byUser = {};
+      (allRuns || []).forEach(r => {
+        if (!byUser[r.user_id]) byUser[r.user_id] = new Set();
+        byUser[r.user_id].add(r.segment_id);
+      });
+      const collectors = Object.entries(byUser).map(([uid, segs]) => ({
+        user_id: uid,
+        name: uid === user.id ? 'You' : 'User ' + uid.slice(0, 8),
+        collected: segs.size
+      })).sort((a, b) => b.collected - a.collected).slice(0, 100);
+
+      let collectorsHtml = collectors.length === 0 ? '<div class="empty">No one collecting yet</div>' : '';
+      collectors.forEach((c, i) => {
+        collectorsHtml += '<div class="row" style="' + (c.user_id === user.id ? 'background:var(--bg);border:1px solid var(--accent);' : '') + '"><div class="rank">' + (i+1) + '</div><div class="name">' + c.name + '</div><div class="metric">' + c.collected + ' segments</div></div>';
+      });
+      document.getElementById('collectors').innerHTML = collectorsHtml;
+
+      // STREAKS - consecutive days per user
+      const streaksByUser = {};
+      (allRuns || []).forEach(r => {
+        if (!streaksByUser[r.user_id]) streaksByUser[r.user_id] = new Set();
+        if (r.created_at) streaksByUser[r.user_id].add(r.created_at.slice(0, 10));
+      });
+
+      const streaks = Object.entries(streaksByUser).map(([uid, days]) => {
+        const sorted = [...days].sort().reverse();
+        let streak = 0, cursor = new Date();
+        for (const d of sorted) {
+          const iso = cursor.toISOString().slice(0, 10);
+          if (d === iso) { streak++; cursor.setDate(cursor.getDate() - 1); }
+          else if (streak === 0 && d === new Date(cursor - 86400000).toISOString().slice(0, 10)) {
+            streak++; cursor = new Date(d); cursor.setDate(cursor.getDate() - 1);
+          } else break;
+        }
+        return { user_id: uid, name: uid === user.id ? 'You' : 'User ' + uid.slice(0, 8), streak };
+      }).sort((a, b) => b.streak - a.streak).slice(0, 100);
+
+      let streaksHtml = streaks.length === 0 ? '<div class="empty">No streaks yet</div>' : '';
+      streaks.forEach((s, i) => {
+        streaksHtml += '<div class="row" style="' + (s.user_id === user.id ? 'background:var(--bg);border:1px solid var(--accent);' : '') + '"><div class="rank">' + (i+1) + '</div><div class="name">' + s.name + '</div><div class="metric">' + s.streak + ' days</div></div>';
+      });
+      document.getElementById('streaks').innerHTML = streaksHtml;
     })();
   </script>
 </body>

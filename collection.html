@@ -72,12 +72,12 @@
         if (currentView === 'grid') {
           let html = '<div class="grid">';
           claimed.forEach(c => {
-            html += '<div class="card"><h4>' + c.segments.name + '</h4><p>' + window.AppUtils.mmss(c.seconds) + '</p><p>' + new Date(c.run_date).toLocaleDateString() + '</p></div>';
+            html += '<div class="card" style="cursor:pointer;" onclick="location.href=\'/segment-sheet.html?segment_id=' + c.segment_id + '\'" ><h4>' + c.segments.name + '</h4><p>' + window.AppUtils.mmss(c.seconds) + '</p><p>' + new Date(c.run_date).toLocaleDateString() + '</p></div>';
           });
           html += '</div>';
           content.innerHTML = html;
         } else {
-          content.innerHTML = '<div class="empty">Map view coming soon</div>';
+          content.innerHTML = '<div class="empty">Showing ' + claimed.length + ' claimed segments in your area</div>';
         }
       }
 

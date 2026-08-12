@@ -634,6 +634,20 @@
       map.on('idle', loadSegmentsInView);
     })();
 
+    function resizeMap() {
+      if (!map) return;
+      requestAnimationFrame(() => {
+        map.resize();
+        map.triggerRepaint();
+      });
+    }
+
+    window.addEventListener('orientationchange', resizeMap);
+    window.addEventListener('resize', resizeMap);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', resizeMap);
+    }
+
     /* ---------- 3. segments ---------- */
     let loading = false;
     async function loadSegmentsInView() {

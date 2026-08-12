@@ -9,23 +9,26 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/lib/mobile.css">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.css" rel="stylesheet">
   <style>
     :root { --bg: #F3F4F6; --card: #FFF; --ink: #0E1116; --muted: #6E7681; --faint: #9AA1AC; --line: #E7E9ED; --accent: #FF4B12; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { margin: 0; height: 100%; overflow: hidden; }
     .phone { width: 100%; height: 100%; display: flex; flex-direction: column; background: var(--bg); }
-    .header { background: var(--card); padding: 16px; border-bottom: 1px solid var(--line); }
+    #map { flex: 1; position: relative; width: 100%; }
+    .mapbox-canvas-container.mapboxgl-canvas-container { height: 100%; }
+    .header { position: fixed; top: 0; left: 0; right: 0; background: var(--card); padding: 16px; border-bottom: 1px solid var(--line); z-index: 10; }
     .header h2 { margin: 0; font-family: "Inter Tight"; font-size: 16px; font-weight: 700; }
     .header p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
-    .content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; }
-    .metric { font-size: 48px; font-weight: 700; font-family: "Inter Tight"; color: var(--ink); margin: 16px 0; }
-    .status { font-size: 14px; color: var(--muted); margin: 12px 0; }
-    .bottom { background: var(--card); padding: 16px; border-top: 1px solid var(--line); display: flex; gap: 12px; }
+    .overlay { position: fixed; top: 60px; left: 16px; background: var(--card); padding: 8px 12px; border-radius: 8px; font-size: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 10; }
+    .metric { font-size: 36px; font-weight: 700; font-family: "Inter Tight"; color: var(--ink); }
+    .status { font-size: 11px; color: var(--muted); }
+    .bottom { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); padding: 16px; border-top: 1px solid var(--line); display: flex; gap: 12px; z-index: 10; }
     button { border: 0; padding: 12px 16px; border-radius: 8px; font-family: inherit; cursor: pointer; font-weight: 600; }
     .btn-back { background: var(--line); color: var(--ink); flex: 1; }
     .btn-action { background: var(--accent); color: #fff; flex: 2; font-size: 16px; }
     .btn-action:disabled { opacity: 0.6; cursor: not-allowed; }
-    .error { color: #8C2C0E; background: #FFF1EC; padding: 12px; border-radius: 8px; margin: 12px 0; }
+    .error { color: #8C2C0E; background: #FFF1EC; padding: 12px; border-radius: 8px; margin: 12px 0; display: none; position: fixed; top: 70px; left: 16px; right: 16px; z-index: 10; }
   </style>
 </head>
 <body>
@@ -34,12 +37,13 @@
       <h2 id="segmentName">Loading...</h2>
       <p id="headerStatus">Finding you</p>
     </div>
-    <div class="content">
-      <div id="accuracy">Signal: —</div>
+    <div id="map"></div>
+    <div class="overlay">
+      <div id="accuracy" style="font-size: 11px; color: var(--muted); margin-bottom: 3px;">Signal: —</div>
       <div class="metric" id="metric">—</div>
       <div class="status" id="status">—</div>
-      <div id="errorBox" class="error" style="display:none;"></div>
     </div>
+    <div id="errorBox" class="error"></div>
     <div class="bottom">
       <button class="btn-back" id="backBtn">Back</button>
       <button class="btn-action" id="actionBtn">Start</button>
@@ -49,6 +53,7 @@
   <script src="/lib/tap.js"></script>
   <script src="/lib/errors.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js"></script>
   <script src="lib/constants.js"></script>
   <script src="lib/utils.js"></script>
   <script src="lib/geo.js"></script>
@@ -61,6 +66,7 @@
 
     let seg = null, profile = null, phase = 'acquiring', trace = [], goodFixes = 0;
     let startGate = null, finishGate = null, t0 = null, elapsed = null, reversed = false, wakeLock = null;
+    let map = null, currentLocation = null;
 
     document.getElementById('backBtn').addEventListener('click', () => history.back());
     document.getElementById('actionBtn').addEventListener('click', onAction);
@@ -86,8 +92,164 @@
       startGate = window.AppGeo.gateAt(coords[0], startBrg, GATE_HALF);
       finishGate = window.AppGeo.gateAt(coords[coords.length - 1], finishBrg, GATE_HALF);
 
+      initMap();
       startWatching();
     })();
+
+    function initMap() {
+      mapboxgl.accessToken = window.AppConstants.MAPBOX_TOKEN;
+      map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/outdoors-v12',
+        center: [seg.centre_lng, seg.centre_lat],
+        zoom: 16
+      });
+
+      map.on('load', () => {
+        drawSegmentAndGates();
+      });
+    }
+
+    function drawSegmentAndGates() {
+      if (!map) return;
+
+      const coords = seg.geom.map(c => [c[1], c[0]]);
+
+      map.addSource('segment', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          geometry: {
+            type: 'LineString',
+            coordinates: coords
+          }
+        }
+      });
+
+      map.addLayer({
+        id: 'segment-line',
+        type: 'line',
+        source: 'segment',
+        paint: {
+          'line-color': '#FF4B12',
+          'line-width': 3,
+          'line-opacity': 0.8
+        }
+      });
+
+      if (startGate && finishGate) {
+        map.addSource('gates', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: [
+              {
+                type: 'Feature',
+                geometry: {
+                  type: 'LineString',
+                  coordinates: [[startGate[0][1], startGate[0][0]], [startGate[1][1], startGate[1][0]]]
+                },
+                properties: { gate: 'start' }
+              },
+              {
+                type: 'Feature',
+                geometry: {
+                  type: 'LineString',
+                  coordinates: [[finishGate[0][1], finishGate[0][0]], [finishGate[1][1], finishGate[1][0]]]
+                },
+                properties: { gate: 'finish' }
+              }
+            ]
+          }
+        });
+
+        map.addLayer({
+          id: 'gates-line',
+          type: 'line',
+          source: 'gates',
+          paint: {
+            'line-color': '#0E1116',
+            'line-width': 2,
+            'line-dasharray': [4, 4],
+            'line-opacity': 0.6
+          }
+        });
+      }
+
+      map.addSource('trace', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: []
+        }
+      });
+
+      map.addLayer({
+        id: 'trace-line',
+        type: 'line',
+        source: 'trace',
+        paint: {
+          'line-color': '#6E7681',
+          'line-width': 2,
+          'line-opacity': 0.5
+        }
+      });
+
+      map.addSource('runner', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [0, 0]
+          }
+        }
+      });
+
+      map.addLayer({
+        id: 'runner-circle',
+        type: 'circle',
+        source: 'runner',
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#FF4B12',
+          'circle-opacity': 0.9
+        }
+      });
+    }
+
+    function updateMap(pos) {
+      if (!map) return;
+
+      currentLocation = [pos.coords.longitude, pos.coords.latitude];
+      map.easeTo({
+        center: currentLocation,
+        duration: 300
+      });
+
+      if (map.getSource('runner')) {
+        map.getSource('runner').setData({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: currentLocation
+          }
+        });
+      }
+
+      if (phase === 'timing' && trace.length > 0) {
+        const traceCoords = trace.map(f => [f.p[1], f.p[0]]);
+        if (map.getSource('trace')) {
+          map.getSource('trace').setData({
+            type: 'Feature',
+            geometry: {
+              type: 'LineString',
+              coordinates: traceCoords
+            }
+          });
+        }
+      }
+    }
 
     function setPhase(newPhase, msg) {
       phase = newPhase;
@@ -145,6 +307,7 @@
         }
       }
 
+      updateMap(pos);
       paint();
     }
 

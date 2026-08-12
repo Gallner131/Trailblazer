@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/lib/mobile.css">
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.css" rel="stylesheet">
   <style>
     :root {
@@ -36,10 +37,11 @@
       right: 0;
       bottom: 56px;
       z-index: 1;
-      display: none;
+      display: block !important;
     }
-    #map.visible {
-      display: block;
+    #map.is-hidden {
+      opacity: 0;
+      pointer-events: none;
     }
     /* Header */
     .header {
@@ -108,10 +110,11 @@
       bottom: 56px;
       overflow-y: auto;
       padding: 16px;
-      display: none;
+      display: block !important;
     }
-    #content.visible {
-      display: block;
+    #content.is-hidden {
+      opacity: 0;
+      pointer-events: none;
     }
     .grid {
       display: grid;
@@ -320,6 +323,8 @@
     </button>
   </div>
 
+  <script src="/lib/tap.js"></script>
+  <script src="/lib/errors.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js"></script>
   <script src="lib/constants.js"></script>
@@ -343,14 +348,14 @@
       document.querySelector(`[data-view="${v}"]`).classList.add('active');
 
       if (v === 'map') {
-        document.getElementById('content').classList.remove('visible');
-        document.getElementById('map').classList.add('visible');
+        document.getElementById('content').classList.add('is-hidden');
+        document.getElementById('map').classList.remove('is-hidden');
         if (map) {
           setTimeout(() => map.resize(), 100);
         }
       } else {
-        document.getElementById('map').classList.remove('visible');
-        document.getElementById('content').classList.add('visible');
+        document.getElementById('map').classList.add('is-hidden');
+        document.getElementById('content').classList.remove('is-hidden');
       }
     }
 
@@ -544,7 +549,7 @@
 
         // Render initial view
         renderGrid();
-        document.getElementById('content').classList.add('visible');
+        document.getElementById('content').classList.remove('is-hidden');
 
         // Initialize map for later use
         initMap();

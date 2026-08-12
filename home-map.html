@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.css" rel="stylesheet">
+  <link rel="stylesheet" href="/lib/mobile.css">
   <style>
     :root {
       --bg: #F3F4F6;
@@ -202,30 +203,98 @@
       opacity: 0;
       transition: opacity 0.3s;
     }
+    /* Pin states: featured (larger), open (outlined), collected (filled+tick) */
     .seg-pin {
       position: relative;
-      width: 22px;
-      height: 22px;
       cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .seg-pin:active {
+      transform: scale(0.9);
     }
     .seg-pin .dot {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
       display: block;
-      width: 14px;
-      height: 14px;
       border-radius: 50%;
-      background: #FF4B12;
       border: 2.5px solid #fff;
-      box-shadow: 0 1px 4px rgba(0,0,0,.35);
+      box-shadow: 0 2px 6px rgba(0,0,0,.25);
+    }
+    /* Featured: larger, filled, ring */
+    .seg-pin.featured {
+      width: 40px;
+      height: 40px;
+    }
+    .seg-pin.featured .dot {
+      width: 22px;
+      height: 22px;
+      background: #FF4B12;
+      box-shadow: 0 0 0 6px rgba(255,75,18,.2), 0 2px 6px rgba(0,0,0,.3);
+    }
+    /* Open: outlined */
+    .seg-pin.open {
+      width: 28px;
+      height: 28px;
+    }
+    .seg-pin.open .dot {
+      width: 16px;
+      height: 16px;
+      background: transparent;
+      border: 2.5px solid #FF4B12;
+    }
+    /* Collected: filled with tick */
+    .seg-pin.collected {
+      width: 28px;
+      height: 28px;
+    }
+    .seg-pin.collected .dot {
+      width: 16px;
+      height: 16px;
+      background: #FF4B12;
+    }
+    .seg-pin.collected .tick {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 6px;
+      height: 12px;
+      border-right: 2px solid #fff;
+      border-bottom: 2px solid #fff;
+      transform: translate(-50%, -55%) rotate(45deg);
     }
     .seg-pin .badge {
       position: absolute;
-      top: -7px;
-      right: -9px;
+      top: -8px;
+      right: -8px;
       background: #0E1116;
       color: #fff;
       font: 700 10px/1 Inter, sans-serif;
-      padding: 3px 5px;
+      padding: 2px 4px;
       border-radius: 9px;
+      min-width: 18px;
+      text-align: center;
+    }
+    /* Cluster */
+    .seg-cluster {
+      position: relative;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+    }
+    .seg-cluster .badge {
+      width: 100%;
+      height: 100%;
+      background: #FF4B12;
+      border-radius: 50%;
+      border: 2.5px solid #fff;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.25);
     }
     /* Featured segment card */
     .featured-container {
@@ -471,6 +540,8 @@
     </div>
   </div>
 
+  <script src="/lib/tap.js"></script>
+  <script src="/lib/errors.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js"></script>
   <script src="lib/constants.js"></script>
@@ -631,7 +702,12 @@
 
       map.on('error', e => console.error('MAPBOX ERROR:', e && e.error));
       map.on('load', () => { map.resize(); loadSegmentsInView(); });
-      map.on('idle', loadSegmentsInView);
+      map.on('moveend', loadSegmentsInView);
+
+      // Fallback timeout at 2500ms if load/moveend don't fire
+      const loadTimeout = setTimeout(loadSegmentsInView, 2500);
+      map.on('load', () => clearTimeout(loadTimeout));
+      map.on('moveend', () => clearTimeout(loadTimeout));
     })();
 
     function resizeMap() {
@@ -650,17 +726,25 @@
 
     /* ---------- 3. segments ---------- */
     let loading = false;
+
+    function computeCell(lat, lng) {
+      return Math.floor(lat * 100) / 100 + ',' + Math.floor(lng * 100) / 100;
+    }
+
     async function loadSegmentsInView() {
+      // Guard with in-flight flag
       if (!map || loading) return;
       loading = true;
       const bar = document.getElementById('loadingBar');
       bar.style.display = 'block';
       try {
         const b = map.getBounds();
+        // Load segments in viewport, ordered by quality DESC, capped at 200
         const { data, error } = await window.supabaseClient
           .from('segments').select('*')
           .gte('centre_lat', b.getSouth()).lte('centre_lat', b.getNorth())
           .gte('centre_lng', b.getWest()).lte('centre_lng', b.getEast())
+          .order('quality', { ascending: false })
           .limit(200);
         if (error) throw new Error('Segments: ' + error.message);
 
@@ -674,19 +758,32 @@
         const counts = {};
         (runs || []).forEach(r => counts[r.segment_id] = (counts[r.segment_id] || 0) + 1);
 
+        // Get user's collected segments
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        const { data: userRuns, error: userRunsError } = await window.supabaseClient
+          .from('runs').select('segment_id').eq('user_id', user.id);
+        const collected = new Set(userRuns ? userRuns.map(r => r.segment_id) : []);
+
+        // Get featured segment info
+        const featuredCell = computeCell(profile.home_lat, profile.home_lng);
+        const { data: allSegsInCell, error: allSegsError } = await window.supabaseClient
+          .from('segments').select('id')
+          .eq('cell', featuredCell)
+          .eq('hidden', false)
+          .eq('approved', true)
+          .order('quality', { ascending: false })
+          .limit(1);
+        const featuredId = (allSegsInCell && allSegsInCell.length > 0) ? allSegsInCell[0].id : null;
+
         markers.forEach(m => m.remove());
         markers = [];
 
-        (data || []).forEach(s => {
-          const el = document.createElement('div');
-          el.className = 'seg-pin';
-          const n = counts[s.id] || 0;
-          el.innerHTML = '<span class="dot"></span>' +
-            (n > 0 ? '<span class="badge">' + n + '</span>' : '');
-          el.addEventListener('click', () => openSheet(s));
-          markers.push(new mapboxgl.Marker(el)
-            .setLngLat([s.centre_lng, s.centre_lat]).addTo(map));
-        });
+        // Cluster pins if more than 50
+        if (data && data.length > 50) {
+          createClusters(data, counts, collected, featuredId);
+        } else {
+          renderPins(data || [], counts, collected, featuredId);
+        }
 
         document.getElementById('searchAreaBtn').style.display =
           (data && data.length >= 5) ? 'none' : 'block';
@@ -697,6 +794,104 @@
         loading = false;
         setTimeout(() => { bar.style.display = 'none'; }, 300);
       }
+    }
+
+    function renderPins(segments, counts, collected, featuredId) {
+      segments.forEach(s => {
+        const el = document.createElement('div');
+
+        // Determine pin state: featured, collected, or open
+        let state = 'open';
+        if (s.id === featuredId) {
+          state = 'featured';
+          el.className = 'seg-pin featured';
+        } else if (collected.has(s.id)) {
+          state = 'collected';
+          el.className = 'seg-pin collected';
+        } else {
+          el.className = 'seg-pin open';
+        }
+
+        // Build pin HTML based on state
+        let html = '<span class="dot"></span>';
+        if (state === 'collected') {
+          html += '<span class="tick"></span>';
+        }
+        const n = counts[s.id] || 0;
+        if (n > 0) {
+          html += '<span class="badge">' + n + '</span>';
+        }
+        el.innerHTML = html;
+
+        el.addEventListener('click', () => openSheet(s));
+        markers.push(new mapboxgl.Marker(el)
+          .setLngLat([s.centre_lng, s.centre_lat]).addTo(map));
+      });
+    }
+
+    function createClusters(segments, counts, collected, featuredId) {
+      // Group segments by grid cell for clustering
+      const clusters = new Map();
+
+      segments.forEach(s => {
+        const cellKey = Math.floor(s.centre_lat * 100) + ',' + Math.floor(s.centre_lng * 100);
+        if (!clusters.has(cellKey)) {
+          clusters.set(cellKey, []);
+        }
+        clusters.get(cellKey).push(s);
+      });
+
+      // Render clusters and individual pins
+      clusters.forEach((segsInCluster) => {
+        if (segsInCluster.length > 1) {
+          // Create cluster marker
+          const el = document.createElement('div');
+          el.className = 'seg-cluster';
+          el.innerHTML = '<div class="badge">' + segsInCluster.length + '</div>';
+
+          const avgLat = segsInCluster.reduce((sum, s) => sum + s.centre_lat, 0) / segsInCluster.length;
+          const avgLng = segsInCluster.reduce((sum, s) => sum + s.centre_lng, 0) / segsInCluster.length;
+
+          el.addEventListener('click', () => {
+            // Zoom to cluster bounds
+            const bounds = new mapboxgl.LngLatBounds();
+            segsInCluster.forEach(s => bounds.extend([s.centre_lng, s.centre_lat]));
+            map.fitBounds(bounds, { padding: 40 });
+          });
+
+          markers.push(new mapboxgl.Marker(el)
+            .setLngLat([avgLng, avgLat]).addTo(map));
+        } else {
+          // Single pin in this cell
+          const s = segsInCluster[0];
+          const el = document.createElement('div');
+
+          let state = 'open';
+          if (s.id === featuredId) {
+            state = 'featured';
+            el.className = 'seg-pin featured';
+          } else if (collected.has(s.id)) {
+            state = 'collected';
+            el.className = 'seg-pin collected';
+          } else {
+            el.className = 'seg-pin open';
+          }
+
+          let html = '<span class="dot"></span>';
+          if (state === 'collected') {
+            html += '<span class="tick"></span>';
+          }
+          const n = counts[s.id] || 0;
+          if (n > 0) {
+            html += '<span class="badge">' + n + '</span>';
+          }
+          el.innerHTML = html;
+
+          el.addEventListener('click', () => openSheet(s));
+          markers.push(new mapboxgl.Marker(el)
+            .setLngLat([s.centre_lng, s.centre_lat]).addTo(map));
+        }
+      });
     }
 
     function openSheet(s) {

@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/lib/mobile.css">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.css" rel="stylesheet">
   <style>
     :root {
       --bg: #F3F4F6;
@@ -27,6 +29,8 @@
       margin: 0;
       height: 100%;
       overflow: hidden;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
     }
     body {
       background: var(--bg);
@@ -38,11 +42,22 @@
       width: 100%;
       height: 100%;
       position: relative;
-      display: flex;
-      flex-direction: column;
+    }
+    #map {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      height: 100%;
+    }
+    #map.is-hidden {
+      opacity: 0;
+      pointer-events: none;
     }
     .sheet {
-      position: absolute;
+      position: fixed;
       bottom: 0;
       left: 0;
       right: 0;
@@ -51,19 +66,21 @@
       z-index: 100;
       display: flex;
       flex-direction: column;
-      max-height: 100%;
+      max-height: 70dvh;
       box-shadow: 0 -10px 30px -10px rgba(14,17,22,.2);
-    }
-    .sheet.collapsed {
-      height: 180px;
+      height: 40dvh;
     }
     .sheet.expanded {
-      height: 90vh;
+      height: 70dvh;
     }
     .sheet-handle {
       padding: 8px 0 4px;
       text-align: center;
-      flex: none;
+      flex: 0 0 auto;
+      cursor: grab;
+    }
+    .sheet-handle:active {
+      cursor: grabbing;
     }
     .handle-bar {
       width: 40px;
@@ -72,17 +89,26 @@
       border-radius: 2px;
       margin: 0 auto;
     }
-    .sheet-content {
-      flex: 1;
+    .sheet-body {
+      flex: 1 1 auto;
       overflow-y: auto;
-      padding: 0 16px 16px;
+      -webkit-overflow-scrolling: touch;
+      padding: 0 16px;
     }
-    .sheet-content::-webkit-scrollbar {
+    .sheet-body::-webkit-scrollbar {
       width: 6px;
     }
-    .sheet-content::-webkit-scrollbar-thumb {
+    .sheet-body::-webkit-scrollbar-thumb {
       background: var(--line);
       border-radius: 3px;
+    }
+    .sheet-action {
+      flex: 0 0 auto;
+      padding: 12px 16px;
+      padding-bottom: calc(12px + var(--safe-bottom));
+      min-height: 44px;
+      display: flex;
+      gap: 8px;
     }
     .seg-name {
       font-family: "Inter Tight";
@@ -279,30 +305,68 @@
 </head>
 <body>
   <div class="phone">
-    <div class="sheet collapsed" id="sheet">
-      <div class="sheet-handle">
+    <div id="map"></div>
+
+    <div class="sheet" id="sheet">
+      <div class="sheet-handle" id="sheetHandle">
         <div class="handle-bar"></div>
       </div>
 
-      <div class="sheet-content" id="sheetContent">
+      <div class="sheet-body" id="sheetBody">
         <!-- Dynamic content here -->
+      </div>
+
+      <div class="sheet-action" id="sheetAction">
+        <button class="btn" id="runBtn" style="flex: 1; margin: 0;">Run this</button>
+        <button id="reportBtn" style="flex: 0 0 auto; padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; font-size: 16px;">⚠</button>
       </div>
     </div>
   </div>
 
+  <script src="/lib/tap.js"></script>
+  <script src="/lib/errors.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js"></script>
   <script src="lib/constants.js"></script>
   <script src="lib/utils.js"></script>
   <script src="lib/api.js"></script>
   <script src="lib/auth.js"></script>
   <script>
+    // Map initialization
+    let map;
+    function initMap() {
+      mapboxgl.accessToken = window.AppConstants.MAPBOX_TOKEN;
+      map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/outdoors-v12',
+        zoom: 14,
+        center: [0, 51.5]
+      });
+
+      function resizeMap() {
+        if (map) {
+          setTimeout(() => map.resize(), 100);
+        }
+      }
+
+      function loadSegmentsInView() {
+        // Placeholder - segments load from detail
+      }
+
+      map.on('load', () => {
+        resizeMap();
+        loadSegmentsInView();
+      });
+      map.on('moveend', () => loadSegmentsInView());
+      setTimeout(() => {
+        resizeMap();
+        loadSegmentsInView();
+      }, 2500);
+    }
+
     // Segment Sheet Logic
     let userId;
     let hasReportedSegment = false;
-    const reportModal = document.getElementById('reportModal');
-    const reportCancel = document.getElementById('reportCancel');
-    const reportSubmit = document.getElementById('reportSubmit');
-    const reportMessage = document.getElementById('reportMessage');
 
     // Get current user session
     window.supabaseClient.auth.getSession().then(({ data: { session } }) => {
@@ -311,6 +375,7 @@
       } else {
         userId = session.user.id;
         checkUserReports();
+        initMap();
         loadSegment();
       }
     });
@@ -341,16 +406,62 @@
 
     let segment, board = [], currentLevel = null;
     const sheet = document.getElementById('sheet');
-    const sheetContent = document.getElementById('sheetContent');
+    const sheetBody = document.getElementById('sheetBody');
+    const sheetHandle = document.getElementById('sheetHandle');
 
-    // Toggle expanded/collapsed
+    // Toggle expanded/collapsed on handle drag or click
     let isExpanded = false;
+    let startY = 0;
+    let startHeight = 0;
+
+    sheetHandle.addEventListener('mousedown', (e) => {
+      startY = e.clientY;
+      startHeight = sheet.offsetHeight;
+      document.addEventListener('mousemove', handleDrag);
+      document.addEventListener('mouseup', endDrag);
+    });
+
+    sheetHandle.addEventListener('touchstart', (e) => {
+      startY = e.touches[0].clientY;
+      startHeight = sheet.offsetHeight;
+      document.addEventListener('touchmove', handleDrag);
+      document.addEventListener('touchend', endDrag);
+    });
+
+    function handleDrag(e) {
+      const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+      const diff = startY - currentY;
+      const newHeight = Math.max(40, Math.min(70, (startHeight + diff) / window.innerHeight * 100));
+      sheet.style.height = newHeight + 'dvh';
+    }
+
+    function endDrag() {
+      document.removeEventListener('mousemove', handleDrag);
+      document.removeEventListener('mouseup', endDrag);
+      document.removeEventListener('touchmove', handleDrag);
+      document.removeEventListener('touchend', endDrag);
+
+      const currentHeight = parseInt(sheet.style.height) || 40;
+      if (currentHeight > 55) {
+        sheet.classList.add('expanded');
+        sheet.style.height = '70dvh';
+      } else {
+        sheet.classList.remove('expanded');
+        sheet.style.height = '40dvh';
+      }
+      if (map) map.resize();
+    }
+
     sheet.addEventListener('click', (e) => {
-      // Don't toggle if clicking on buttons
-      if (e.target.closest('.btn, .btn-secondary')) return;
+      if (e.target.closest('.btn, button[id]')) return;
       isExpanded = !isExpanded;
       sheet.classList.toggle('expanded');
-      sheet.classList.toggle('collapsed');
+      if (isExpanded) {
+        sheet.style.height = '70dvh';
+      } else {
+        sheet.style.height = '40dvh';
+      }
+      if (map) map.resize();
     });
 
     // Load segment and board
@@ -369,13 +480,12 @@
     }
 
     function renderContent() {
-      const today = new Date().toISOString().split('T')[0];
       const isEmpty = board.length === 0;
 
       let html = `
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-          <div class="seg-name" style="margin: 12px 0 3px; flex: 1;">${segment?.name || 'Segment'}</div>
-          <button class="btn-secondary" id="shareBtn" style="flex: 0 0 auto; margin: 0; padding: 8px 12px; font-size: 12px;">Share</button>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-top: 12px;">
+          <div class="seg-name" style="margin: 0; flex: 1;">${segment?.name || 'Segment'}</div>
+          <button id="shareBtn" style="flex: 0 0 auto; margin: 0; padding: 8px 12px; font-size: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; cursor: pointer;">Share</button>
         </div>
         <div class="seg-location">${segment?.highway || 'Road'}</div>
 
@@ -429,96 +539,61 @@
         });
       }
 
-      html += `
-        </div>
+      html += `</div>`;
 
-        <div class="action-buttons">
-          <button class="btn" id="runBtn" style="flex: 1;">Run this</button>
-          <button class="btn-secondary" id="reportBtn" style="flex: 0 0 auto; padding: 14px 12px;">⚠</button>
-        </div>
-      `;
-
-      sheetContent.innerHTML = html;
+      sheetBody.innerHTML = html;
 
       // Event listeners
-      document.getElementById('runBtn').addEventListener('click', () => {
-        window.location.href = '/recording.html?segment_id=' + segmentId;
-      });
+      document.getElementById('runBtn').removeEventListener('click', handleRunClick);
+      document.getElementById('runBtn').addEventListener('click', handleRunClick);
 
-      document.getElementById('shareBtn').addEventListener('click', async (e) => {
-        e.stopPropagation();
-        await handleShare();
-      });
+      const shareBtn = document.getElementById('shareBtn');
+      if (shareBtn) {
+        shareBtn.removeEventListener('click', handleShareClick);
+        shareBtn.addEventListener('click', handleShareClick);
+      }
 
-      document.getElementById('reportBtn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (hasReportedSegment) {
-          alert('You have already reported this segment.');
-        } else {
-          openReportModal();
-        }
-      });
+      document.getElementById('reportBtn').removeEventListener('click', handleReportClick);
+      document.getElementById('reportBtn').addEventListener('click', handleReportClick);
 
       document.querySelectorAll('.level-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-          document.querySelectorAll('.level-btn').forEach(b => b.setAttribute('aria-pressed', 'false'));
-          btn.setAttribute('aria-pressed', 'true');
-          currentLevel = parseInt(btn.dataset.level);
-
-          await ensureUserId();
-          const { data: boardData } = await window.AppAPI.getSegmentBoardToday(segmentId, currentLevel);
-          if (boardData) {
-            board = boardData;
-            renderContent();
-          }
-        });
+        btn.removeEventListener('click', handleLevelChange);
+        btn.addEventListener('click', handleLevelChange);
       });
     }
 
-    // Report Modal Functions
-    function openReportModal() {
-      reportModal.classList.add('active');
-      reportMessage.innerHTML = '';
-      document.querySelectorAll('input[name="report-reason"]').forEach(r => r.checked = false);
+    function handleRunClick() {
+      window.location.href = '/recording.html?segment_id=' + segmentId;
     }
 
-    function closeReportModal() {
-      reportModal.classList.remove('active');
-      reportMessage.innerHTML = '';
-      document.querySelectorAll('input[name="report-reason"]').forEach(r => r.checked = false);
+    function handleShareClick(e) {
+      e.stopPropagation();
+      handleShare();
     }
 
-    reportCancel.addEventListener('click', closeReportModal);
-
-    // Enable submit button when reason is selected
-    document.querySelectorAll('input[name="report-reason"]').forEach(radio => {
-      radio.addEventListener('change', () => {
-        reportSubmit.disabled = false;
-      });
-    });
-
-    reportSubmit.addEventListener('click', async () => {
-      const reason = document.querySelector('input[name="report-reason"]:checked')?.value;
-      if (!reason) return;
-
-      reportSubmit.disabled = true;
-      try {
-        const { error } = await window.AppAPI.submitSegmentReport(segmentId, userId, reason);
-        if (error) {
-          reportMessage.innerHTML = '<div class="error-box">Failed to submit report. Please try again.</div>';
-          reportSubmit.disabled = false;
-        } else {
-          reportMessage.innerHTML = '<div class="success-box">Thank you for your report. This helps us keep Trailblazer safe.</div>';
-          hasReportedSegment = true;
-          setTimeout(() => closeReportModal(), 2000);
-        }
-      } catch (err) {
-        reportMessage.innerHTML = '<div class="error-box">Error: ' + err.message + '</div>';
-        reportSubmit.disabled = false;
+    function handleReportClick(e) {
+      e.stopPropagation();
+      if (hasReportedSegment) {
+        alert('You have already reported this segment.');
+      } else {
+        alert('Report feature coming soon');
       }
-    });
+    }
 
-    // Sharing Functions
+    async function handleLevelChange(e) {
+      const btn = e.target;
+      document.querySelectorAll('.level-btn').forEach(b => b.setAttribute('aria-pressed', 'false'));
+      btn.setAttribute('aria-pressed', 'true');
+      currentLevel = parseInt(btn.dataset.level);
+
+      await ensureUserId();
+      const { data: boardData } = await window.AppAPI.getSegmentBoardToday(segmentId, currentLevel);
+      if (boardData) {
+        board = boardData;
+        renderContent();
+      }
+    }
+
     async function handleShare() {
       if (!segment) return;
 
@@ -533,7 +608,6 @@
             url: shareLink
           });
         } else {
-          // Fallback to copy link
           await navigator.clipboard.writeText(shareLink);
           alert('Link copied to clipboard!');
         }
@@ -543,13 +617,6 @@
         }
       }
     }
-
-    // Click outside modal to close
-    reportModal.addEventListener('click', (e) => {
-      if (e.target === reportModal) {
-        closeReportModal();
-      }
-    });
   </script>
 </body>
 </html>

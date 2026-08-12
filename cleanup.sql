@@ -1,16 +1,13 @@
--- Cleanup: Remove junk and invalid segments
--- Paste into Supabase SQL Editor and run AFTER schema-fix.sql
+-- Cleanup: Remove test row and short segments, enforce valid length range
+-- Run in Supabase SQL editor once schema migration is applied
 
--- Remove test/junk rows
+-- 1. Delete the RLS probe row (test data)
 delete from public.segments where id = 999999901;
-delete from public.segments where name = 'RLS probe';
 
--- Remove all segments under 300 m (below timing floor per §2.3)
+-- 2. Delete all segments under 300m (too short for running)
 delete from public.segments where length_m < 300;
 
--- Add length constraint
+-- 3. Add constraint to enforce valid length range in future inserts
 alter table public.segments
-add constraint segments_length_check check (length_m between 300 and 1000);
-
--- List remaining segments to verify
--- select count(*), min(length_m), max(length_m) from public.segments;
+  drop constraint if exists "segments_length_m_check",
+  add constraint "segments_length_m_check" check (length_m between 300 and 1000);

@@ -1,0 +1,62 @@
+:root {
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left, 0px);
+  --safe-right:  env(safe-area-inset-right, 0px);
+}
+
+html, body {
+  height: 100dvh;
+  margin: 0;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* The bottom bar currently sits under the iPhone home indicator */
+.bottom-bar, #bottomBar, nav[role="tablist"] {
+  padding-bottom: calc(var(--safe-bottom) + 8px);
+}
+
+/* Top controls currently sit under the notch */
+#areaBtn, #locateBtn, .top-control {
+  margin-top: calc(var(--safe-top) + 8px);
+}
+
+/* Every tap target */
+button, .card, .pin, [role="button"], .card-strip > * {
+  min-height: 44px;
+  min-width: 44px;
+  touch-action: manipulation;
+}
+
+/* The map must NEVER be hidden with display:none — that zeroes the WebGL
+   canvas and it never repaints. This is why the map goes blank on select. */
+#map { display: block !important; }
+#map.is-hidden { opacity: 0; pointer-events: none; }
+
+/* Horizontal card strip should scroll, not stretch the page */
+#cardStrip {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  padding-bottom: calc(var(--safe-bottom) + 4px);
+}
+#cardStrip > * { scroll-snap-align: start; flex: 0 0 auto; }
+
+/* A visible error bar instead of a silent blank screen */
+.error-bar {
+  position: fixed;
+  top: calc(var(--safe-top) + 8px);
+  left: 8px; right: 8px;
+  z-index: 9999;
+  background: #b3261e;
+  color: #fff;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font: 14px/1.35 system-ui, sans-serif;
+  display: flex; gap: 12px; align-items: center; justify-content: space-between;
+}
+.error-bar button {
+  background: #fff; color: #b3261e; border: 0;
+  border-radius: 8px; padding: 8px 12px; font-weight: 600;
+}

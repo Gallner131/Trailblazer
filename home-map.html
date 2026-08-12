@@ -306,6 +306,107 @@
     .featured-btn:active {
       transform: scale(0.96);
     }
+    /* Search */
+    .search-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(14, 17, 22, 0.3);
+      z-index: 10;
+      pointer-events: none;
+    }
+    .search-overlay.active {
+      display: block;
+      pointer-events: all;
+    }
+    .search-container {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: none;
+      flex-direction: column;
+      z-index: 11;
+      gap: 8px;
+    }
+    .search-container.active {
+      display: flex;
+    }
+    .search-field {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-family: Inter, sans-serif;
+      font-size: 14px;
+      color: var(--ink);
+      box-shadow: var(--sh);
+    }
+    .search-field::placeholder {
+      color: var(--faint);
+    }
+    .search-results {
+      background: var(--card);
+      border-radius: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      box-shadow: var(--sh);
+      max-width: 100%;
+    }
+    .search-result-item {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.1s;
+    }
+    .search-result-item:last-child {
+      border-bottom: none;
+    }
+    .search-result-item:hover {
+      background: var(--bg);
+    }
+    .search-result-item.segment {
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .search-result-item.place {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .search-result-empty {
+      padding: 16px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .search-toggle-btn {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      width: 36px;
+      height: 36px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0;
+      cursor: pointer;
+      box-shadow: var(--sh);
+      display: grid;
+      place-items: center;
+      z-index: 11;
+    }
+    .search-toggle-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+    .search-toggle-btn.hide {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -315,12 +416,25 @@
     <div class="loading-bar" id="loadingBar"></div>
 
     <div class="topbar">
+      <button class="search-toggle-btn" id="searchToggleBtn">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+        </svg>
+      </button>
       <button class="area-btn" id="areaBtn">London</button>
       <button class="locate-btn" id="locateBtn">
         <svg viewBox="0 0 24 24" fill="currentColor">
           <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94-2A11.04 11.04 0 0012 1c-6.5 0-12 5.5-12 12s5.5 12 12 12 12-5.5 12-12c0-2.26-.71-4.35-1.93-6.06zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
         </svg>
       </button>
+    </div>
+
+    <div class="search-overlay" id="searchOverlay"></div>
+    <div class="search-container" id="searchContainer">
+      <input type="text" class="search-field" id="searchField" placeholder="Search segments or places...">
+      <div class="search-results" id="searchResults" style="display: none;">
+        <div class="search-result-empty">Start typing to search</div>
+      </div>
     </div>
 
     <div class="featured-container" id="featuredContainer"></div>
@@ -365,6 +479,7 @@
   <script src="lib/api.js"></script>
   <script src="lib/harvest.js"></script>
   <script src="lib/featured.js"></script>
+  <script src="lib/search.js"></script>
   <script>
     /* ---------- 1. BIND EVERYTHING FIRST. NO AWAIT ABOVE THIS BLOCK ---------- */
     document.getElementById('areaBtn').addEventListener('click',
@@ -481,6 +596,17 @@
         card.addEventListener('click', () => {
           window.location.href = '/segment-sheet.html?segment_id=' + card.dataset.segmentId;
         });
+      });
+
+      // Add swipe pan support to card strip
+      let startX = 0;
+      strip.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; });
+      strip.addEventListener('touchend', (e) => {
+        const endX = e.changedTouches[0].clientX;
+        const diff = endX - startX;
+        if (Math.abs(diff) > 10) {
+          strip.scrollLeft -= diff; // Swipe right = pan left
+        }
       });
     }
 

@@ -201,7 +201,7 @@
           window.supabaseClient.from('profiles').select('*').eq('id', user.id).single(),
           window.supabaseClient.from('segments').select('*').eq('id', segmentId).single(),
           window.supabaseClient.from('runs').select('seconds,user_id,level,ranked').eq('segment_id', segmentId).eq('run_date', today).order('seconds', { ascending: true }),
-          window.supabaseClient.from('runs').select('seconds,run_date').eq('segment_id', segmentId).eq('user_id', user.id).order('run_date', { ascending: false })
+          window.supabaseClient.from('runs').select('seconds,run_date').eq('segment_id', segmentId).eq('user_id', user.id).order('seconds', { ascending: true })
         ]);
 
         if (profileRes.error || !profileRes.data) throw new Error('Profile not found');
@@ -216,13 +216,18 @@
         if (!mine) throw new Error('Run not found');
 
         // Check if first time on this segment
-        const previousRuns = (historyRes.data || []).filter(r => r.run_date < today);
+        const allRuns = historyRes.data || [];
+        const previousRuns = allRuns.filter(r => r.run_date < today);
         state.isFirstTime = previousRuns.length === 0;
 
+        // Get personal best (first in sorted array by seconds ascending)
+        const personalBest = allRuns.length > 0 ? allRuns[0].seconds : null;
+
         // Check if new best
-        state.isNewBest = !previousRuns.length || mine.seconds < previousRuns[0].seconds;
+        state.isNewBest = !personalBest || mine.seconds < personalBest;
         state.ranked = mine.ranked !== false;
         state.run = mine;
+        state.personalBest = personalBest;
 
         // Render the result
         renderResult(board);
@@ -282,29 +287,12 @@
       document.getElementById('targetSection').style.display = 'block';
 
       // Best section - show if not first time
-      if (!state.isFirstTime) {
-        const prevRuns = [];
-        for (const run of board) {
-          if (run.user_id === state.user.id && run.run_date < today) {
-            prevRuns.push(run.seconds);
-          }
-        }
-        // Get personal best from all historical runs on this segment
-        window.supabaseClient.from('runs')
-          .select('seconds')
-          .eq('segment_id', segmentId)
-          .eq('user_id', state.user.id)
-          .order('seconds', { ascending: true })
-          .limit(1)
-          .then(res => {
-            if (res.data && res.data.length > 0) {
-              const best = res.data[0].seconds;
-              const deltaBest = state.run.seconds - best;
-              document.getElementById('bestTime').textContent = window.AppUtils.mmss(best);
-              document.getElementById('deltaBest').innerHTML = deltaBestHtml(deltaBest);
-              document.getElementById('bestSection').style.display = 'block';
-            }
-          });
+      if (!state.isFirstTime && state.personalBest) {
+        const best = state.personalBest;
+        const deltaBest = state.run.seconds - best;
+        document.getElementById('bestTime').textContent = window.AppUtils.mmss(best);
+        document.getElementById('deltaBest').innerHTML = deltaBestHtml(deltaBest);
+        document.getElementById('bestSection').style.display = 'block';
       }
 
       // Leader section - show if ranked and there's a leader
